@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] - 2026-03-22
+
+### Full Codebase Audit & Hardening
+
+Comprehensive 6-phase security and quality audit covering all API routes, frontend components, and library code.
+
+#### Security
+- **CRITICAL: Localhost Guard on Update Endpoint** — `/api/system/update` (which runs `git pull` + `npm install`) is now restricted to localhost-only requests via host + x-forwarded-for validation.
+- **SQL Injection Prevention** — Replaced all `$queryRawUnsafe` calls with parameterized `$queryRaw(Prisma.sql\`...\`)` across scan detail, review detail, and review rerun routes.
+- **Error Message Leak** — Proxy validation endpoint no longer exposes internal error messages to clients.
+- **Input Validation** — Added `Array.isArray` guard on lookback POST endpoint to reject malformed payloads.
+- **PATCH Whitelisting** — Scan update endpoint only accepts whitelisted fields, preventing arbitrary field modification.
+
+#### Fixed
+- **HTTP 200 on Error** — 8 API routes were returning HTTP 200 with error payloads. All catch blocks now return proper 4xx/5xx status codes (scans, dashboard, alerts, settings, logs, proxies, lookback, reviews).
+- **Stale Polling Closure** — Scan detail page had a monolithic `useEffect` causing stale `activeRunId` in the polling interval. Split into separate initial-fetch and polling effects with correct dependency arrays.
+- **Missing React Keys** — Added stable `key` props to competitor lists, business cards, review lists, priority issues, and suggested responses across scan detail and review detail pages.
+- **Prisma Type Casts** — Removed all `(prisma as any)` casts (15+ instances) by regenerating the Prisma client. Typed `where` clauses properly.
+
+#### Added
+- **Error Boundaries** — Added `error.tsx` (segment-level) and `global-error.tsx` (root-level) Next.js error boundaries for graceful crash recovery.
+
+#### Changed
+- **Structured Logging** — Migrated 40+ `console.log`/`console.error` calls across 16 API routes to the structured `logger` utility with source tags (SCANNER, PROXY, REVIEWS, SCHEDULER, etc.) for database-persisted, filterable system logs.
+- **Browser Type Safety** — Typed Playwright browser variable in lookup route (`Browser | null` instead of `any`).
+- **Anti-Detection Timing** — Mouse movement simulation interval changed from fixed 1s to randomized 3-5s to reduce fingerprinting risk.
+
+---
+
 ## [1.7.0] - 2026-03-03
 
 ### Apify-Level Review Scraper & Export Overhaul

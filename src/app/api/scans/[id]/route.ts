@@ -1,5 +1,28 @@
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+
+/**
+ * Recursively convert all BigInt values in an object/array to Number,
+ * and Date objects to ISO strings for safe JSON serialization.
+ * SQLite raw queries return COUNT(*) and similar aggregates as BigInt,
+ * which JSON.stringify cannot serialize.
+ */
+function sanitizeBigInts(obj: unknown): unknown {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'bigint') return Number(obj);
+    if (obj instanceof Date) return obj.toISOString();
+    if (Array.isArray(obj)) return obj.map(sanitizeBigInts);
+    if (typeof obj === 'object') {
+        const result: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+            result[key] = sanitizeBigInts(value);
+        }
+        return result;
+    }
+    return obj;
+}
 
 export async function GET(
     request: Request,
@@ -10,7 +33,7 @@ export async function GET(
         const url = new URL(request.url);
         const requestedRunId = url.searchParams.get('runId');
 
-        const scan = await (prisma as any).scan.findUnique({
+        const scan = await prisma.scan.findUnique({
             where: { id },
         });
 
@@ -20,14 +43,17 @@ export async function GET(
 
         // Get all distinct runs for the timeline using raw SQL
         // (avoids Prisma client cache issues with new columns)
-        const rawRuns: any[] = await prisma.$queryRawUnsafe(
-            `SELECT runId, MIN(runAt) as runAt, COUNT(*) as resultCount 
-             FROM Result 
-             WHERE scanId = ? 
-             GROUP BY runId 
-             ORDER BY MIN(runAt) ASC`,
-            id
-        );
+        // IMPORTANT: Sanitize ALL raw SQL results immediately to convert BigInt → Number
+        // before any Date/Number operations, as SQLite returns BigInt for aggregates.
+        const rawRuns: any[] = sanitizeBigInts(
+            await prisma.$queryRaw(
+                Prisma.sql`SELECT runId, MIN(runAt) as runAt, COUNT(*) as resultCount
+                 FROM Result
+                 WHERE scanId = ${id}
+                 GROUP BY runId
+                 ORDER BY MIN(runAt) ASC`
+            )
+        ) as any[];
 
         const runs = rawRuns.map(r => ({
             runId: r.runId || `${id}-legacy`,
@@ -39,23 +65,26 @@ export async function GET(
         const activeRunId = requestedRunId || scan.currentRunId || (runs.length > 0 ? runs[runs.length - 1].runId : null);
 
         // Fetch results for the active run using raw query
-        const results: any[] = activeRunId
-            ? await prisma.$queryRawUnsafe(
-                `SELECT * FROM Result WHERE scanId = ? AND runId = ?`,
-                id, activeRunId
-            )
-            : await prisma.$queryRawUnsafe(
-                `SELECT * FROM Result WHERE scanId = ?`,
-                id
-            );
+        const results: any[] = sanitizeBigInts(
+            activeRunId
+                ? await prisma.$queryRaw(
+                    Prisma.sql`SELECT * FROM Result WHERE scanId = ${id} AND runId = ${activeRunId}`
+                )
+                : await prisma.$queryRaw(
+                    Prisma.sql`SELECT * FROM Result WHERE scanId = ${id}`
+                )
+        ) as any[];
+
+        // Also sanitize the scan object (Prisma findUnique can also return BigInt in some SQLite configs)
+        const safeScan = sanitizeBigInts(scan);
 
         return NextResponse.json({
-            scan: { ...scan, results },
+            scan: { ...(safeScan as object), results },
             runs,
             activeRunId,
         });
     } catch (error: any) {
-        console.error('Scan GET error:', error?.message, error?.stack);
+        logger.error('Scan GET error', 'SCANNER', { message: error?.message, stack: error?.stack });
         return NextResponse.json({ error: 'Failed to fetch scan', details: error?.message }, { status: 500 });
     }
 }
@@ -70,7 +99,7 @@ export async function DELETE(
         await prisma.scan.delete({ where: { id } });
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Scan DELETE error:', error);
+        logger.error('Scan DELETE error', 'SCANNER', { error: String(error) });
         return NextResponse.json({ error: 'Failed to delete scan' }, { status: 500 });
     }
 }
@@ -103,7 +132,7 @@ export async function PATCH(
 
         return NextResponse.json(scan);
     } catch (error) {
-        console.error('Scan PATCH error:', error);
+        logger.error('Scan PATCH error', 'SCANNER', { error: String(error) });
         return NextResponse.json({ error: 'Failed to update scan' }, { status: 500 });
     }
 }

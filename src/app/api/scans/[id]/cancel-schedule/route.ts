@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function POST(
     request: Request,
@@ -24,7 +25,7 @@ export async function POST(
 
         return NextResponse.json({ success: true, scan: updated });
     } catch (error: any) {
-        console.error('Cancel schedule error:', error);
+        logger.error('Cancel schedule error', 'SCHEDULER', { error: error.message });
         return NextResponse.json({ error: 'Failed to cancel schedule', details: error.message }, { status: 500 });
     }
 }

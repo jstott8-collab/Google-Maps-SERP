@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { runScan } from '@/lib/scanner';
+import { enqueueScan } from '@/lib/scanQueue';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
     try {
@@ -20,8 +21,8 @@ export async function GET() {
 
         return NextResponse.json({ missedScans });
     } catch (error) {
-        console.error('Lookback check error:', error);
-        return NextResponse.json({ missedScans: [] });
+        logger.error('Lookback check error', 'SCHEDULER', { error: String(error) });
+        return NextResponse.json({ missedScans: [], error: 'Failed to check missed scans' }, { status: 500 });
     }
 }
 
@@ -29,14 +30,19 @@ export async function POST(req: Request) {
     try {
         const { scanIds } = await req.json();
 
-        for (const id of scanIds) {
-            // Trigger scan immediately
-            runScan(id).catch(console.error);
+        if (!Array.isArray(scanIds)) {
+            return NextResponse.json({ error: 'scanIds must be an array' }, { status: 400 });
         }
 
-        return NextResponse.json({ success: true, count: scanIds.length });
+        const results = [];
+        for (const id of scanIds) {
+            const result = enqueueScan(id);
+            results.push({ id, result });
+        }
+
+        return NextResponse.json({ success: true, count: scanIds.length, results });
     } catch (error) {
-        console.error('Lookback execution error:', error);
+        logger.error('Lookback execution error', 'SCHEDULER', { error: String(error) });
         return NextResponse.json({ error: 'Failed to run missed scans' }, { status: 500 });
     }
 }

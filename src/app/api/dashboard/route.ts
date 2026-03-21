@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
     try {
@@ -13,7 +14,7 @@ export async function GET() {
 
         return NextResponse.json({ scansCount, completedScans, activeScans, recentScans });
     } catch (error) {
-        console.error('Dashboard API error:', error);
-        return NextResponse.json({ scansCount: 0, completedScans: 0, activeScans: 0, recentScans: [] });
+        logger.error('Dashboard API error', 'DASHBOARD', { error: String(error) });
+        return NextResponse.json({ scansCount: 0, completedScans: 0, activeScans: 0, recentScans: [], error: 'Failed to fetch dashboard data' }, { status: 500 });
     }
 }

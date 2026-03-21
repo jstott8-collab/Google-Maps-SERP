@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { chromium } from 'playwright';
+import { chromium, Browser } from 'playwright';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
-    let browser: any = null;
+    let browser: Browser | null = null;
     try {
         const body = await request.json();
         const { query, url } = body;

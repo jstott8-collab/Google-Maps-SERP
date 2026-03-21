@@ -10,8 +10,8 @@ export async function GET() {
         });
         return NextResponse.json({ scans });
     } catch (error) {
-        console.error('Scans GET error:', error);
-        return NextResponse.json({ scans: [] });
+        logger.error('Scans GET error', 'SCANNER', { error: String(error) });
+        return NextResponse.json({ scans: [], error: 'Failed to fetch scans' }, { status: 500 });
     }
 }
 
@@ -57,11 +57,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(scan);
     } catch (error) {
-        console.error('Scan creation CRITICAL error:', error);
-        if (error instanceof Error) {
-            console.error('Error message:', error.message);
-            console.error('Error stack:', error.stack);
-        }
+        logger.error('Scan creation failed', 'SCANNER', { error: String(error), stack: error instanceof Error ? error.stack : undefined });
         return NextResponse.json({ error: 'Failed to create scan', details: String(error) }, { status: 500 });
     }
 }

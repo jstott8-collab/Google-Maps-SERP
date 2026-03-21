@@ -808,7 +808,7 @@ export default function ReviewResultsPage() {
                     {actions.priorityIssues?.length > 0 && (
                         <div className="space-y-3 mb-4">
                             {actions.priorityIssues.map((issue: any, i: number) => (
-                                <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
+                                <div key={`issue-${i}-${issue.issue}`} className="bg-white border border-gray-200 rounded-xl p-4">
                                     <div className="flex items-center justify-between mb-1">
                                         <h4 className="text-sm font-semibold text-gray-900">{issue.issue}</h4>
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${issue.severity === 'CRITICAL' ? 'bg-red-200 text-red-800' : issue.severity === 'URGENT' ? 'bg-red-100 text-red-700' :
@@ -860,7 +860,7 @@ export default function ReviewResultsPage() {
                             <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5"><PenTool className="w-3 h-3 text-violet-500" /> Suggested Responses for Unresponded Negatives</p>
                             <div className="space-y-3">
                                 {actions.suggestedResponses.slice(0, 5).map((sr: any, i: number) => (
-                                    <div key={i} className="border border-gray-200 rounded-xl p-4">
+                                    <div key={`sr-${i}-${sr.reviewerName}`} className="border border-gray-200 rounded-xl p-4">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-semibold text-gray-700">{sr.reviewerName}</span>
@@ -1134,8 +1134,8 @@ function SourceReviews({ reviews, label }: { reviews: any[]; label?: string }) {
             </button>
             {open && (
                 <div className="mt-2 max-h-64 overflow-y-auto space-y-2 border border-gray-100 rounded-xl p-3 bg-gray-50/50">
-                    {reviews.map((r: any, i: number) => (
-                        <div key={i} className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                    {reviews.map((r: any) => (
+                        <div key={r.id} className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
                             <div className="flex items-center gap-2 mb-1">
                                 {r.reviewerUrl ? (
                                     <a href={r.reviewerUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">

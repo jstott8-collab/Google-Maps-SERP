@@ -248,7 +248,7 @@ export async function runScan(scanId: string) {
                     });
                     document.dispatchEvent(event);
                 };
-                setInterval(moveMouse, 1000);
+                setInterval(moveMouse, 3000 + Math.random() * 2000);
             });
 
             return { context: ctx, page: pg };

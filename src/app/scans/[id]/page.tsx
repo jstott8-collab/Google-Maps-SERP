@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import dynamic from 'next/dynamic';
-import { RefreshCw, Trophy, List, ChevronLeft, ChevronRight, ExternalLink, MapPin, Layers, Eye, Target } from 'lucide-react';
+import { RefreshCw, Trophy, List, ChevronLeft, ChevronRight, ExternalLink, MapPin, Layers, Eye, Target, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card, Button, Badge, Input } from '@/components/ui';
 import { exportToXLSX, exportToPDF } from '@/lib/export';
@@ -13,15 +13,16 @@ import { BusinessCard } from '@/components/scans/BusinessCard';
 import { TrendChart } from '@/components/scans/TrendChart';
 import { CompetitorIntelligenceDashboard } from '@/components/scans/CompetitorIntelligence';
 import { TimelineBar } from '@/components/scans/TimelineBar';
+import { AddressResolver } from '@/components/scans/AddressResolver';
 
 // Dynamically import Map component to avoid SSR issues with Leaflet
 const MapComponent = dynamic(() => import('@/components/ui/Map'), {
     ssr: false,
-    loading: () => (
-        <div className="h-full w-full flex items-center justify-center bg-gray-100">
-            <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
-        </div>
-    ),
+    loading: () => <div className="h-full w-full bg-gray-100 animate-pulse flex items-center justify-center"><p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Loading Spatial Data...</p></div>
+});
+const MiniMap = dynamic(() => import('@/components/scans/MiniMap').then(m => m.MiniMap), {
+    ssr: false,
+    loading: () => <div className="w-24 h-24 bg-gray-100 rounded-lg animate-pulse" />
 });
 
 interface Result {
@@ -76,6 +77,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [runs, setRuns] = useState<Run[]>([]);
     const [activeRunId, setActiveRunId] = useState<string | null>(null);
+    const [enlargedMap, setEnlargedMap] = useState<{ lat: number, lng: number, rank: number | null | undefined } | null>(null);
 
     const fetchScan = (runId?: string) => {
         const url = runId
@@ -94,15 +96,17 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
 
     useEffect(() => {
         fetchScan();
+    }, [resolvedParams.id]);
+
+    useEffect(() => {
+        if (scan?.status !== 'RUNNING' && scan?.status !== 'PENDING') return;
 
         const interval = setInterval(() => {
-            if (scan?.status === 'RUNNING' || scan?.status === 'PENDING') {
-                fetchScan(activeRunId || undefined);
-            }
+            fetchScan(activeRunId || undefined);
         }, 5000);
 
         return () => clearInterval(interval);
-    }, [resolvedParams.id, scan?.status]);
+    }, [resolvedParams.id, scan?.status, activeRunId]);
 
     const handleSelectRun = (runId: string) => {
         setActiveRunId(runId);
@@ -409,7 +413,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {top3Competitors.map((comp, idx) => (
-                        <Card key={idx} className="p-4 border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
+                        <Card key={comp.name} className="p-4 border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
                             <div className="flex justify-between items-start mb-3">
                                 <div className="bg-blue-50 text-blue-600 font-black text-[10px] px-2 py-1 rounded uppercase">Rank #{idx + 1} Share</div>
                                 <span className="text-[10px] text-gray-400 font-mono">Found in {comp.appearances} points</span>
@@ -535,12 +539,23 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                                         onClick={() => toggleRow(r.id)}
                                                         className={`p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-blue-50/20 shadow-inner' : ''}`}
                                                     >
-                                                        <div className="flex items-center gap-6">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest mb-1">Grid Anchor</span>
-                                                                <span className="text-xs font-bold text-gray-600">{r.lat.toFixed(4)}, {r.lng.toFixed(4)}</span>
+                                                        <div className="flex items-center gap-6 flex-1">
+                                                            {/* Mini Map */}
+                                                            <div className="shrink-0">
+                                                                <MiniMap
+                                                                    lat={r.lat}
+                                                                    lng={r.lng}
+                                                                    rank={r.rank}
+                                                                    onEnlarge={(_lat, _lng, _rank) => setEnlargedMap({ lat: _lat, lng: _lng, rank: _rank })}
+                                                                />
                                                             </div>
-                                                            <div className="flex flex-col items-center">
+
+                                                            <div className="flex flex-col gap-1.5 min-w-[200px]">
+                                                                <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest">Grid Anchor</span>
+                                                                <span className="text-xs font-bold text-gray-600 font-mono tracking-tight">{r.lat.toFixed(5)}, {r.lng.toFixed(5)}</span>
+                                                                <AddressResolver lat={r.lat} lng={r.lng} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center flex-1">
                                                                 <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest mb-1">Positional Rank</span>
                                                                 {r.rank ? (
                                                                     <Badge variant={r.rank <= 3 ? 'success' : r.rank <= 10 ? 'warning' : 'destructive'} className="h-5 font-black text-[10px]">
@@ -567,9 +582,9 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                                     {isExpanded && (
                                                         <div className="bg-gray-50/80 p-5 ml-4 mb-3 mr-4 rounded-b-2xl border-x border-b border-gray-100 shadow-sm animate-in slide-in-from-top-2 duration-200">
                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                {topResults.map((biz, idx) => (
+                                                                {topResults.map((biz) => (
                                                                     <BusinessCard
-                                                                        key={idx}
+                                                                        key={`${biz.name}-${biz.rank}`}
                                                                         biz={biz}
                                                                         scan={scan}
                                                                         compact={true}
@@ -629,8 +644,8 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                                     return Array.from(competitorsMap.values())
                                                         .map(c => ({ ...c, avgRank: c.avgRank / c.appearances }))
                                                         .sort((a, b) => b.appearances - a.appearances || a.avgRank - b.avgRank)
-                                                        .map((comp, idx) => (
-                                                            <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
+                                                        .map((comp) => (
+                                                            <tr key={comp.name} className="hover:bg-gray-50/50 transition-colors group">
                                                                 <td className="py-4">
                                                                     <p className="font-black text-gray-900 group-hover:text-blue-600 transition-colors">{comp.name}</p>
                                                                     {comp.name.toLowerCase() === scan.businessName?.toLowerCase() && (
@@ -684,6 +699,48 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                         </div>
                     </Card>
                 </div>
+
+                {/* Enlarged Map Modal */}
+                {enlargedMap && (
+                    <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm"
+                        onClick={() => setEnlargedMap(null)}
+                    >
+                        <div
+                            className="bg-white rounded-2xl shadow-2xl p-4 w-full max-w-2xl h-[600px] flex flex-col relative animate-in zoom-in-95 duration-200"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <button
+                                onClick={() => setEnlargedMap(null)}
+                                className="absolute -top-4 -right-4 bg-white text-gray-600 hover:text-red-500 rounded-full p-2 shadow-lg z-10 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                            <div className="mb-4">
+                                <h3 className="font-black text-gray-900 uppercase tracking-widest">Grid Anchor Detail</h3>
+                                <div className="mt-1">
+                                    <AddressResolver lat={enlargedMap.lat} lng={enlargedMap.lng} />
+                                </div>
+                            </div>
+                            <div className="flex-1 rounded-xl overflow-hidden ring-1 ring-gray-100">
+                                {/* We reuse the Main Map component but with only 1 point */}
+                                <MapComponent
+                                    center={[enlargedMap.lat, enlargedMap.lng]}
+                                    zoom={18}
+                                    points={[{
+                                        id: 'enlarged',
+                                        lat: enlargedMap.lat,
+                                        lng: enlargedMap.lng,
+                                        rank: enlargedMap.rank as any,
+                                        hasData: true
+                                    }]}
+                                    gridSize={3} // Doesn't matter, grid hides when looking at 1 point
+                                    showHeatmap={false}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Dynamic Sidebar: Results Inspection */}
                 <PinInspectionSidebar selectedPoint={selectedPoint} getTopResults={getTopResults} scan={scan} />

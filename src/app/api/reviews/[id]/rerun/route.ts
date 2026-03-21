@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { scrapeGoogleReviews } from '@/lib/reviewScraper';
 import { analyzeReviews } from '@/lib/reviewAnalyzer';
 import { analyzeSentiment } from '@/lib/sentimentEngine';
+import { logger } from '@/lib/logger';
 
 export async function POST(
     req: Request,
@@ -47,9 +49,8 @@ export async function POST(
             }
 
             // Count existing runs via raw SQL (Prisma client doesn't know new fields)
-            const existingRuns: any[] = await prisma.$queryRawUnsafe(
-                `SELECT DISTINCT runId FROM Review WHERE analysisId = ?`,
-                id
+            const existingRuns: any[] = await prisma.$queryRaw(
+                Prisma.sql`SELECT DISTINCT runId FROM Review WHERE analysisId = ${id}`
             );
             const runNumber = existingRuns.length;
             const newRunId = `${id}-run${runNumber}`;
@@ -107,9 +108,8 @@ export async function POST(
 
             // Sentiment enrichment — fetch new run's reviews via raw SQL
             await sendLog('Analyzing sentiment and fake patterns...');
-            const dbReviews: any[] = await prisma.$queryRawUnsafe(
-                `SELECT id, text, rating, reviewCount, photoCount FROM Review WHERE analysisId = ? AND runId = ?`,
-                id, newRunId
+            const dbReviews: any[] = await prisma.$queryRaw(
+                Prisma.sql`SELECT id, text, rating, reviewCount, photoCount FROM Review WHERE analysisId = ${id} AND runId = ${newRunId}`
             );
 
             const SENTIMENT_BATCH_SIZE = 50;
@@ -147,7 +147,7 @@ export async function POST(
             await sendResult({ id: analysis.id });
 
         } catch (error: any) {
-            console.error('Rerun error:', error);
+            logger.error(`Review rerun error: ${error.message}`, 'REVIEWS');
             await sendLog(`Error: ${error.message}`, 'error');
 
             try {

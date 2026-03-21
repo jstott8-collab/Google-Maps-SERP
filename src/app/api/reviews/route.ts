@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { scrapeGoogleReviews } from '@/lib/reviewScraper';
 import { analyzeReviews } from '@/lib/reviewAnalyzer';
 import { analyzeSentiment } from '@/lib/sentimentEngine';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
     try {
@@ -21,8 +22,8 @@ export async function GET() {
         });
         return NextResponse.json(analyses);
     } catch (error: any) {
-        console.error('GET /api/reviews error:', error);
-        return NextResponse.json([], { status: 200 });
+        logger.error('Reviews GET error', 'REVIEWS', { error: error.message });
+        return NextResponse.json({ error: 'Failed to fetch reviews' }, { status: 500 });
     }
 }
 
@@ -172,7 +173,7 @@ export async function POST(req: Request) {
             await sendResult(analysis);
 
         } catch (error: any) {
-            console.error('Stream error:', error);
+            logger.error('Review stream error', 'REVIEWS', { error: error.message });
             await sendLog(`Error: ${error.message}`, 'error');
             await writer.close();
         }

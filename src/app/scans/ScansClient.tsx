@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { exportAllScansToXLSX } from '@/lib/export';
 import { Search, ChevronRight, Filter, Download, Plus, Calendar, MapPin, Grid, BarChart3, MoreVertical, Trash2, RefreshCw } from 'lucide-react';
@@ -26,6 +26,26 @@ export default function ScansPage({ initialScans }: { initialScans: Scan[] }) {
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState('newest');
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+    // Auto-refresh: poll every 5 seconds when any scan is RUNNING or PENDING
+    const hasActiveScans = useMemo(() =>
+        scans.some(s => s.status === 'RUNNING' || s.status === 'PENDING'),
+        [scans]
+    );
+
+    const fetchScans = useCallback(async () => {
+        try {
+            const res = await fetch('/api/scans');
+            const data = await res.json();
+            if (data.scans) setScans(data.scans);
+        } catch { /* ignore */ }
+    }, []);
+
+    useEffect(() => {
+        if (!hasActiveScans) return;
+        const interval = setInterval(fetchScans, 5000);
+        return () => clearInterval(interval);
+    }, [hasActiveScans, fetchScans]);
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.preventDefault();

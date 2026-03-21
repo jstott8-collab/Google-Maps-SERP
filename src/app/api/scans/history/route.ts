@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({ history });
     } catch (error) {
-        console.error('History fetch error:', error);
+        logger.error('History fetch error', 'SCANNER', { error: String(error) });
         return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
     }
 }

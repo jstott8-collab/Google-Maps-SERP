@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { PageTransition } from './PageTransition';
 import { UpdateNotifier } from './UpdateNotifier';
+import SchedulePoller from '@/components/SchedulePoller';
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(true);
@@ -46,6 +47,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 </footer>
             </main>
             <UpdateNotifier />
+            <SchedulePoller />
         </div>
     );
 }
+

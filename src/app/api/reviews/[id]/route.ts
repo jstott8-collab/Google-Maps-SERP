@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 export async function GET(
     req: Request,
@@ -19,20 +21,18 @@ export async function GET(
         }
 
         // Get currentRunId via raw SQL (Prisma client doesn't know this field)
-        const currentRunIdResult: any[] = await prisma.$queryRawUnsafe(
-            `SELECT currentRunId FROM ReviewAnalysis WHERE id = ?`,
-            id
+        const currentRunIdResult: any[] = await prisma.$queryRaw(
+            Prisma.sql`SELECT currentRunId FROM ReviewAnalysis WHERE id = ${id}`
         );
         const currentRunId = currentRunIdResult[0]?.currentRunId || null;
 
         // Get all distinct runs for history timeline via raw SQL
-        const rawRuns: any[] = await prisma.$queryRawUnsafe(
-            `SELECT runId, MIN(runAt) as runAt, COUNT(*) as reviewCount 
-             FROM Review 
-             WHERE analysisId = ? 
-             GROUP BY runId 
-             ORDER BY MIN(runAt) ASC`,
-            id
+        const rawRuns: any[] = await prisma.$queryRaw(
+            Prisma.sql`SELECT runId, MIN(runAt) as runAt, COUNT(*) as reviewCount
+             FROM Review
+             WHERE analysisId = ${id}
+             GROUP BY runId
+             ORDER BY MIN(runAt) ASC`
         );
 
         const runs = rawRuns.map((r: any, idx: number) => ({
@@ -50,22 +50,19 @@ export async function GET(
         if (activeRunId && runs.some(r => r.runId === activeRunId)) {
             const matchingRun = rawRuns.find(r => (r.runId || `${id}-legacy`) === activeRunId);
             if (matchingRun && matchingRun.runId) {
-                reviews = await prisma.$queryRawUnsafe(
-                    `SELECT * FROM Review WHERE analysisId = ? AND runId = ? ORDER BY rating ASC`,
-                    id, matchingRun.runId
+                reviews = await prisma.$queryRaw(
+                    Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} AND runId = ${matchingRun.runId} ORDER BY rating ASC`
                 );
             } else {
                 // Legacy reviews (runId IS NULL)
-                reviews = await prisma.$queryRawUnsafe(
-                    `SELECT * FROM Review WHERE analysisId = ? AND runId IS NULL ORDER BY rating ASC`,
-                    id
+                reviews = await prisma.$queryRaw(
+                    Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} AND runId IS NULL ORDER BY rating ASC`
                 );
             }
         } else {
             // No run filter, get all reviews
-            reviews = await prisma.$queryRawUnsafe(
-                `SELECT * FROM Review WHERE analysisId = ? ORDER BY rating ASC`,
-                id
+            reviews = await prisma.$queryRaw(
+                Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} ORDER BY rating ASC`
             );
         }
 
@@ -88,7 +85,7 @@ export async function GET(
             activeRunId,
         });
     } catch (error: any) {
-        console.error('GET /api/reviews/[id] error:', error);
+        logger.error('Reviews detail GET error', 'REVIEWS', { error: error.message });
         return NextResponse.json({ error: 'Failed to fetch analysis', details: error.message }, { status: 500 });
     }
 }

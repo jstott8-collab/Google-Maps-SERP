@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
     try {
@@ -11,8 +12,8 @@ export async function GET() {
 
         return NextResponse.json({ settings: settingsMap });
     } catch (error) {
-        console.error('Settings GET error:', error);
-        return NextResponse.json({ settings: {} });
+        logger.error('Settings GET error', 'SETTINGS', { error: String(error) });
+        return NextResponse.json({ settings: {}, error: 'Failed to fetch settings' }, { status: 500 });
     }
 }
 
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(setting);
     } catch (error) {
-        console.error('Setting update error:', error);
+        logger.error('Setting update failed', 'SETTINGS', { error: String(error) });
         return NextResponse.json({ error: 'Failed to update setting' }, { status: 500 });
     }
 }

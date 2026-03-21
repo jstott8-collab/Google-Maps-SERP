@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
     try {
@@ -9,8 +10,8 @@ export async function GET() {
         });
         return NextResponse.json({ alerts });
     } catch (error) {
-        console.error('Alerts GET error:', error);
-        return NextResponse.json({ alerts: [] });
+        logger.error('Alerts GET error', 'ALERTS', { error: String(error) });
+        return NextResponse.json({ alerts: [], error: 'Failed to fetch alerts' }, { status: 500 });
     }
 }
 
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
         });
         return NextResponse.json(alert);
     } catch (error) {
-        console.error('Alerts POST error:', error);
+        logger.error('Alert update failed', 'ALERTS', { error: String(error) });
         return NextResponse.json({ error: 'Failed to update alert' }, { status: 500 });
     }
 }
@@ -34,7 +35,7 @@ export async function DELETE(req: Request) {
         await prisma.alert.delete({ where: { id } });
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Alerts DELETE error:', error);
+        logger.error('Alert delete failed', 'ALERTS', { error: String(error) });
         return NextResponse.json({ error: 'Failed to delete alert' }, { status: 500 });
     }
 }

@@ -12,7 +12,7 @@ export async function POST(
         await logger.info(`Rerun requested for scan ${id}`, 'API', { scanId: id });
 
         // Verify scan exists
-        const scan = await (prisma as any).scan.findUnique({
+        const scan = await prisma.scan.findUnique({
             where: { id },
         });
 
@@ -34,12 +34,12 @@ export async function POST(
         const newRunId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
         // Clear alerts for this scan
-        await (prisma as any).alert.deleteMany({
+        await prisma.alert.deleteMany({
             where: { scanId: id }
         });
 
         // Reset scan status with the new runId
-        const updatedScan = await (prisma as any).scan.update({
+        const updatedScan = await prisma.scan.update({
             where: { id },
             data: {
                 status: 'PENDING',
@@ -62,7 +62,6 @@ export async function POST(
         return NextResponse.json({ success: true, scan: updatedScan });
     } catch (error: any) {
         await logger.error(`Scan Rerun handler crashed for ${id}: ${error.message}`, 'API', { stack: error.stack });
-        console.error('Scan Rerun error:', error);
         return NextResponse.json({ error: 'Failed to rerun scan', details: error.message }, { status: 500 });
     }
 }

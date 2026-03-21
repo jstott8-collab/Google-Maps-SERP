@@ -10,7 +10,7 @@ export async function POST(
     try {
         await logger.info(`Stop requested for scan ${id}`, 'API', { scanId: id });
 
-        const scan = await (prisma as any).scan.update({
+        const scan = await prisma.scan.update({
             where: { id },
             data: { status: 'STOPPED' },
             include: { results: true }

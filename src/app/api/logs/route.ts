@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: Request) {
     try {
@@ -8,11 +9,11 @@ export async function GET(req: Request) {
         const level = searchParams.get('level');
         const source = searchParams.get('source');
 
-        const where: any = {};
+        const where: { level?: string; source?: string } = {};
         if (level) where.level = level;
         if (source) where.source = source;
 
-        const logs = await (prisma as any).systemLog.findMany({
+        const logs = await prisma.systemLog.findMany({
             where,
             orderBy: { createdAt: 'desc' },
             take: limit
@@ -20,14 +21,14 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ logs });
     } catch (error) {
-        console.error('Logs API error:', error);
-        return NextResponse.json({ logs: [] });
+        logger.error('Logs API error', 'SYSTEM', { error: String(error) });
+        return NextResponse.json({ logs: [], error: 'Failed to fetch logs' }, { status: 500 });
     }
 }
 
 export async function DELETE() {
     try {
-        await (prisma as any).systemLog.deleteMany({});
+        await prisma.systemLog.deleteMany({});
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ success: false }, { status: 500 });

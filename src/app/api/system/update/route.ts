@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+import { logger } from '@/lib/logger';
 
 const execAsync = promisify(exec);
 
@@ -20,7 +21,17 @@ export async function GET() {
     }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+    // Security: Only allow requests from localhost
+    const forwarded = req.headers.get('x-forwarded-for');
+    const host = req.headers.get('host') || '';
+    const isLocalhost = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('::1');
+    const isLocalForwarded = !forwarded || forwarded === '127.0.0.1' || forwarded === '::1' || forwarded === 'localhost';
+
+    if (!isLocalhost || !isLocalForwarded) {
+        return NextResponse.json({ error: 'Update endpoint is only accessible from localhost' }, { status: 403 });
+    }
+
     try {
         const logs: string[] = [];
 
@@ -54,7 +65,7 @@ export async function POST() {
             message: 'Update successful! Please restart the app to apply changes.',
         });
     } catch (error: any) {
-        console.error('Update failed:', error);
+        logger.error(`Update failed: ${error.message}`, 'SYSTEM');
         return NextResponse.json({
             success: false,
             error: error.message,

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 export async function POST() {
-    console.log('[ProxyFetch] POST request received at /api/proxies/fetch');
+    logger.info('POST request received at /api/proxies/fetch', 'PROXY_FETCHER');
     try {
         const sources = [
             { name: 'TheSpeedX', url: 'https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt' },
@@ -29,7 +30,7 @@ export async function POST() {
 
         for (const source of sources) {
             try {
-                console.log(`[ProxyFetch] Fetching from ${source.name}: ${source.url}`);
+                logger.info(`Fetching from ${source.name}: ${source.url}`, 'PROXY_FETCHER');
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per source
 
@@ -46,15 +47,15 @@ export async function POST() {
                     .filter(l => l.includes(':') && l.length > 5);
 
                 allProxies = [...allProxies, ...lines];
-                console.log(`[ProxyFetch] ${source.name}: Got ${lines.length} proxies`);
+                logger.info(`${source.name}: Got ${lines.length} proxies`, 'PROXY_FETCHER');
                 logs.push(`Fetched ${lines.length} proxies from ${source.name}`);
             } catch (err: any) {
-                console.error(`[ProxyFetch] Failed ${source.name}:`, err.message);
+                logger.error(`Failed ${source.name}: ${err.message}`, 'PROXY_FETCHER');
                 logs.push(`Failed to fetch from ${source.name}: ${err.message}`);
             }
         }
 
-        console.log(`[ProxyFetch] Total unique potential proxies: ${new Set(allProxies).size}`);
+        logger.info(`Total unique potential proxies: ${new Set(allProxies).size}`, 'PROXY_FETCHER');
         const uniqueEntries = Array.from(new Set(allProxies)).slice(0, 500);
 
         const proxyData = uniqueEntries.map(entry => {
@@ -67,7 +68,7 @@ export async function POST() {
             };
         }).filter(p => p.host && !isNaN(p.port));
 
-        console.log(`[ProxyFetch] Performing quality check on 100 discovered routing pairs...`);
+        logger.info(`Performing quality check on 100 discovered routing pairs...`, 'PROXY_FETCHER');
         logs.push('Evaluating routing quality for 100 candidates...');
 
         const { validateProxyBatch } = await import('@/lib/proxy-tester');
@@ -93,21 +94,21 @@ export async function POST() {
         });
 
         const activeCount = processedProxies.filter(p => p.status === 'ACTIVE').length;
-        console.log(`[ProxyFetch] Quality Check: ${activeCount}/${testPool.length} verified routes.`);
+        logger.info(`Quality Check: ${activeCount}/${testPool.length} verified routes.`, 'PROXY_FETCHER');
         logs.push(`Quality Filter: Found ${activeCount} verified and ${proxyData.length - testPool.length} potential routes.`);
 
-        console.log(`[ProxyFetch] Saving ${processedProxies.length} proxies to pool...`);
+        logger.info(`Saving ${processedProxies.length} proxies to pool...`, 'PROXY_FETCHER');
 
-        // SQLite doesn't support skipDuplicates in createMany. 
+        // SQLite doesn't support skipDuplicates in createMany.
         // We filter out existing proxies manually to avoid unique constraint violations.
-        const existingProxies = await (prisma as any).proxy.findMany({
+        const existingProxies = await prisma.proxy.findMany({
             select: { host: true, port: true }
         });
 
-        const existingKeys = new Set(existingProxies.map((p: any) => `${p.host}:${p.port}`));
+        const existingKeys = new Set(existingProxies.map(p => `${p.host}:${p.port}`));
         const newProxies = processedProxies.filter(p => !existingKeys.has(`${p.host}:${p.port}`));
 
-        console.log(`[ProxyFetch] Pool has ${existingProxies.length} existing. Detected ${newProxies.length} new unique from ${processedProxies.length} candidates.`);
+        logger.info(`Pool has ${existingProxies.length} existing. Detected ${newProxies.length} new unique from ${processedProxies.length} candidates.`, 'PROXY_FETCHER');
         logs.push(`Deduplication: ${existingKeys.size} already in pool, ${newProxies.length} new discovered.`);
 
         let count = 0;
@@ -117,7 +118,7 @@ export async function POST() {
         if (newProxies.length > 0) {
             for (const p of newProxies) {
                 try {
-                    await (prisma as any).proxy.create({
+                    await prisma.proxy.create({
                         data: {
                             host: p.host,
                             port: p.port,
@@ -131,7 +132,7 @@ export async function POST() {
                 } catch (err: any) {
                     // Try fallback for stale schema
                     try {
-                        await (prisma as any).proxy.create({
+                        await prisma.proxy.create({
                             data: {
                                 host: p.host,
                                 port: p.port,
@@ -146,15 +147,15 @@ export async function POST() {
                         errors++;
                         if (errors === 1) firstError = err.message;
                         if (errors <= 5) {
-                            console.error(`[ProxyFetch] Insertion error:`, err.message);
+                            logger.error(`Insertion error: ${err.message}`, 'PROXY_FETCHER');
                         }
                     }
                 }
             }
         }
 
-        const currentCount = await (prisma as any).proxy.count();
-        console.log(`[ProxyFetch] Sync complete. Added ${count} new. Total in pool: ${currentCount}. Errors: ${errors}`);
+        const currentCount = await prisma.proxy.count();
+        logger.info(`Sync complete. Added ${count} new. Total in pool: ${currentCount}. Errors: ${errors}`, 'PROXY_FETCHER');
 
         return NextResponse.json({
             success: true,
@@ -169,7 +170,7 @@ export async function POST() {
         });
 
     } catch (error: any) {
-        console.error('[ProxyFetch] Global error:', error);
+        logger.error(`Global proxy fetch error: ${error.message}`, 'PROXY_FETCHER');
         return NextResponse.json({
             success: false,
             error: 'Failed to fetch proxies',

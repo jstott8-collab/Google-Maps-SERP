@@ -14,8 +14,8 @@ export async function logSystem(message: string, options: LogOptions = {}) {
     console.log(`[${level}] [${source}] ${message}`);
 
     try {
-        if ((prisma as any).systemLog) {
-            await (prisma as any).systemLog.create({
+        if (prisma.systemLog) {
+            await prisma.systemLog.create({
                 data: {
                     level,
                     message,
