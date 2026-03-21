@@ -3,6 +3,7 @@ import { generateGrid } from './grid';
 import { scrapeGMB } from './scraper';
 import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import { logger } from './logger';
+import { dispatchWebhook } from './webhookDispatcher';
 import type { Scan } from '@prisma/client';
 
 /**
@@ -467,12 +468,15 @@ export async function runScan(scanId: string) {
 
                 const diff = previousAvg - currentAvg;
                 if (Math.abs(diff) >= 0.5) {
+                    const direction = diff > 0 ? 'improved' : 'dropped';
+                    const alertMsg = `${scan.businessName} rank ${direction} by ${Math.abs(diff).toFixed(1)} points for "${scan.keyword}"`;
+
                     // Use transaction to ensure both alert and status update succeed together
                     await prisma.$transaction([
                         prisma.alert.create({
                             data: {
                                 type: diff > 0 ? 'RANK_UP' : 'RANK_DOWN',
-                                message: `${scan.businessName} rank ${diff > 0 ? 'improved' : 'dropped'} by ${Math.abs(diff).toFixed(1)} points for "${scan.keyword}"`,
+                                message: alertMsg,
                                 scanId: scan.id
                             }
                         }),
@@ -484,6 +488,12 @@ export async function runScan(scanId: string) {
                             }
                         })
                     ]);
+
+                    // Dispatch rank change webhook (fire-and-forget)
+                    dispatchWebhook('RANK_CHANGE', {
+                        scanId, keyword: scan.keyword, businessName: scan.businessName,
+                        direction, change: Math.abs(diff).toFixed(1), message: alertMsg, runId
+                    }).catch(() => { });
                 } else {
                     await prisma.scan.update({
                         where: { id: scanId },
@@ -513,6 +523,14 @@ export async function runScan(scanId: string) {
         }
 
         await logger.info(`Scan sequence completed successfully for "${scan.keyword}"`, 'SCANNER', { scanId });
+
+        // Dispatch webhooks (fire-and-forget, never blocks scan completion)
+        const finalResults = await prisma.result.findMany({ where: { scanId, runId } });
+        const finalAvg = finalResults.filter(r => r.rank !== null).reduce((sum, r) => sum + (r.rank || 20), 0) / (finalResults.length || 1);
+        dispatchWebhook('SCAN_COMPLETE', {
+            scanId, keyword: scan.keyword, businessName: scan.businessName,
+            avgRank: Math.round(finalAvg * 10) / 10, totalPoints: finalResults.length, runId
+        }).catch(() => { });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         await logger.error(`Critical failure in scan: ${errorMsg}`, 'SCANNER', {
@@ -532,6 +550,12 @@ export async function runScan(scanId: string) {
                     message: `Scan failed for "${scan.keyword}": ${errorMsg}`,
                     scanId: scanId
                 }
+            }).catch(() => { });
+
+            // Dispatch scan failed webhook (fire-and-forget)
+            dispatchWebhook('SCAN_FAILED', {
+                scanId, keyword: scan.keyword, businessName: scan.businessName,
+                error: errorMsg
             }).catch(() => { });
         }
     } finally {

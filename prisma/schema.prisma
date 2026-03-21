@@ -91,6 +91,17 @@ model SystemLog {
   createdAt DateTime @default(now())
 }
 
+model Webhook {
+  id        String   @id @default(cuid())
+  url       String
+  events    String   // JSON array: ["SCAN_COMPLETE","RANK_CHANGE","SCAN_FAILED"]
+  secret    String?  // Optional HMAC-SHA256 signing secret
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([enabled])
+}
+
 model ReviewAnalysis {
   id            String   @id @default(cuid())
   businessName  String

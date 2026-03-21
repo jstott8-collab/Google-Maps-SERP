@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-03-22
+
+### Competitive Intelligence & Analytics Platform
+
+Major feature release adding 10 new API endpoints and infrastructure to match and exceed paid Local SEO SaaS tools (Local Falcon, BrightLocal, Whitespark).
+
+#### New Features
+- **Webhook System** — Full CRUD API (`/api/webhooks`) with HMAC-SHA256 signed payloads. Events: `SCAN_COMPLETE`, `RANK_CHANGE`, `SCAN_FAILED`, `REVIEW_COMPLETE`. Fire-and-forget dispatcher integrated into scanner completion, rank change alerts, and failure handler.
+- **Share of Voice (SOV)** — `/api/scans/[id]/share-of-voice` calculates CTR-weighted market share across all grid points. Includes competitor SOV leaderboard, rank distribution breakdown, and coverage percentages.
+- **Competitor Intelligence** — `/api/scans/[id]/competitors` aggregates competitor presence across grid points with dominance scores, coverage %, and Herfindahl-Hirschman Index (HHI) for market concentration analysis.
+- **Ranking Volatility Tracking** — `/api/scans/[id]/volatility` measures rank stability per grid point across runs using standard deviation + linear regression. Stability grades (A–F), most volatile/stable points, and trend classification (improving/declining/stable).
+- **Heatmap Data API** — `/api/scans/[id]/heatmap` returns color-coded grid points with CTR visibility scores, quadrant analysis (NE/NW/SE/SW), and top competitor per point.
+- **Keyword Cannibalization Detector** — `/api/scans/cannibalization` identifies overlapping scans competing for the same geographic area using Haversine distance + Jaccard keyword similarity with severity ratings and merge recommendations.
+- **Executive Summary** — `/api/scans/[id]/summary` auto-generates natural language insights with metrics, top competitors, and 3–5 actionable recommendations.
+- **GBP Audit** — `/api/scans/[id]/audit` scores business profiles across 5 categories (Visibility, Rankings, Reviews, Profile Completeness, Competitive Position) with competitor benchmarking.
+- **Scan Run Comparison** — `/api/scans/[id]/compare` compares two scan runs side-by-side with rank deltas, direction classification, and visibility change tracking.
+- **Multi-Location Overview** — `/api/scans/overview` aggregates all scans for a business with trend analysis across locations.
+- **White-Label Settings** — `/api/settings/whitelabel` GET/PUT for company name, logo URL, brand color, favicon, support email, and custom domain. Stored via GlobalSetting model with upsert.
+
+#### Infrastructure
+- **Scan Queue Persistence** — Queue state survives server restarts. `recoverQueue()` resets interrupted RUNNING→PENDING scans and re-enqueues all pending work on startup.
+- **Webhook Dispatcher** — `src/lib/webhookDispatcher.ts` with HMAC-SHA256 signing, 5s timeout, parallel dispatch via `Promise.allSettled`.
+- **Scanner Webhook Integration** — `SCAN_COMPLETE` dispatched after successful completion, `RANK_CHANGE` after alert creation, `SCAN_FAILED` in error handler.
+
+---
+
 ## [1.7.1] - 2026-03-22
 
 ### Full Codebase Audit & Scanner Accuracy Overhaul
