@@ -277,6 +277,19 @@ export async function runScan(scanId: string) {
 
             while (!success && attempts < maxAttempts) {
                 attempts++;
+
+                // Check if scan was stopped mid-retry (prevents wasted scrape cycles)
+                if (attempts > 1) {
+                    const midCheck = await prisma.scan.findUnique({
+                        where: { id: scanId },
+                        select: { status: true }
+                    });
+                    if (!midCheck || midCheck.status === 'STOPPED' || midCheck.status === 'PENDING') {
+                        await logger.info(`Scan ${scanId} stopped/reset during retry loop. Aborting point.`, 'SCANNER');
+                        break;
+                    }
+                }
+
                 // Create a FRESH context for each attempt — this is the key accuracy fix.
                 // Each grid point gets a clean browser with no cookies/cache/history.
                 let pointContext: BrowserContext | null = null;
@@ -300,11 +313,20 @@ export async function runScan(scanId: string) {
                             scrapeError.message.includes('ERR_TUNNEL_CONNECTION_FAILED') ||
                             scrapeError.message.includes('TIMEOUT');
 
-                        if (isProxyError) {
-                            // Re-launch browser with a different proxy
+                        const isBlockError = scrapeError.message.includes('418') ||
+                            scrapeError.message.includes('429') ||
+                            scrapeError.message.includes('captcha') ||
+                            scrapeError.message.includes('unusual traffic');
+
+                        if (isProxyError || isBlockError) {
+                            // Re-launch browser with a different proxy on connection or block errors
                             if (browser) await browser.close().catch(() => { });
                             browser = await launchBrowser(currentProxyId || undefined);
                         }
+
+                        // Exponential backoff between retries (2s, 4s)
+                        const backoffMs = Math.min(2000 * Math.pow(2, attempts - 1), 8000);
+                        await new Promise(resolve => setTimeout(resolve, backoffMs + Math.random() * 1000));
                     }
                 } finally {
                     // ALWAYS close the point context to free resources

@@ -10,6 +10,15 @@ export async function POST(
     try {
         await logger.info(`Stop requested for scan ${id}`, 'API', { scanId: id });
 
+        // Verify scan exists before attempting update
+        const existing = await prisma.scan.findUnique({ where: { id }, select: { id: true, status: true } });
+        if (!existing) {
+            return NextResponse.json({ error: 'Scan not found' }, { status: 404 });
+        }
+        if (existing.status === 'STOPPED') {
+            return NextResponse.json({ error: 'Scan is already stopped' }, { status: 409 });
+        }
+
         const scan = await prisma.scan.update({
             where: { id },
             data: { status: 'STOPPED' },

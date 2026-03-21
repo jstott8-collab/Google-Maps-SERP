@@ -74,8 +74,8 @@ export async function scrapeGMB(page: Page, keyword: string, lat: number, lng: n
         {
             let previousCount = 0;
             let noNewResultsStreak = 0;
-            const maxScrollIterations = 12;  // Safety limit
-            const maxNoNewResults = 3;       // Stop after 3 scrolls with no new results
+            const maxScrollIterations = 15;  // Safety limit
+            const maxNoNewResults = 5;       // Stop after 5 scrolls with no new results (Google may pause lazy-loading)
 
             for (let i = 0; i < maxScrollIterations; i++) {
                 // Count current results
@@ -631,15 +631,13 @@ async function extractFromAPIData(page: Page): Promise<ScrapeResult[]> {
 
             const isPhysicalAddress = address && (/\d/.test(address) || address.split(',').length > 2);
 
+            // Precedence: explicit API flag > serves text indicator > address heuristic
             if (explicitSABFlag) {
+                // Explicit SAB flag from Google API is authoritative — never override
                 isSAB = true;
             } else if (hasServesIndicator || hasSABHint) {
-                if (!isPhysicalAddress) {
-                    isSAB = true;
-                }
-            }
-            if (address && /\d+/.test(address)) {
-                isSAB = false;
+                // Serves text or hint present — mark SAB unless there's a clear physical address
+                isSAB = !isPhysicalAddress;
             }
 
             const url = cid ? `https://www.google.com/maps?cid=${cid}` : '';

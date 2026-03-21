@@ -128,13 +128,16 @@ function generateSmartGrid(centerLat: number, centerLng: number, radiusKm: numbe
         { dist: 12.0, spacing: 8.0 }
     ];
 
-    ringConfigs.forEach((ring, ringIdx) => {
-        // Adjust ring distance relative to the requested radius
-        // If radius is 3km, we don't want points at 12km
-        if (ring.dist * (radiusKm / 3) > radiusKm && ringIdx > 1) return;
+    // Scale factor: map the ring configs (designed for 0-12km range) to the actual radius
+    const maxRingDist = ringConfigs[ringConfigs.length - 1].dist; // 12km
+    const scaleFactor = radiusKm / maxRingDist;
 
-        const actualDist = ring.dist * (radiusKm / 3);
-        const actualSpacing = ring.spacing * (radiusKm / 3);
+    ringConfigs.forEach((ring, ringIdx) => {
+        const actualDist = ring.dist * scaleFactor;
+        const actualSpacing = ring.spacing * scaleFactor;
+
+        // Skip rings that extend beyond the requested radius
+        if (actualDist > radiusKm && ringIdx > 1) return;
 
         const circumference = 2 * Math.PI * actualDist;
         const numPoints = Math.max(3, Math.floor(circumference / actualSpacing));

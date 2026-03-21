@@ -4,28 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [1.7.1] - 2026-03-22
 
-### Full Codebase Audit & Hardening
+### Full Codebase Audit & Scanner Accuracy Overhaul
 
-Comprehensive 6-phase security and quality audit covering all API routes, frontend components, and library code.
+Comprehensive 6-phase security and quality audit covering all API routes, frontend components, and library code. Deep analysis of the scan pipeline identified and fixed critical accuracy and reliability issues in the scanner, scraper, and grid engines.
 
 #### Security
 - **CRITICAL: Localhost Guard on Update Endpoint** — `/api/system/update` (which runs `git pull` + `npm install`) is now restricted to localhost-only requests via host + x-forwarded-for validation.
 - **SQL Injection Prevention** — Replaced all `$queryRawUnsafe` calls with parameterized `$queryRaw(Prisma.sql\`...\`)` across scan detail, review detail, and review rerun routes.
 - **Error Message Leak** — Proxy validation endpoint no longer exposes internal error messages to clients.
-- **Input Validation** — Added `Array.isArray` guard on lookback POST endpoint to reject malformed payloads.
+- **Input Validation** — Scan creation now validates keyword (required, trimmed), clamps radius (0.5–100km), gridSize (1–15), and whitelists shape/frequency values. Lookback POST validates `scanIds` is an array.
 - **PATCH Whitelisting** — Scan update endpoint only accepts whitelisted fields, preventing arbitrary field modification.
 
 #### Fixed
-- **HTTP 200 on Error** — 8 API routes were returning HTTP 200 with error payloads. All catch blocks now return proper 4xx/5xx status codes (scans, dashboard, alerts, settings, logs, proxies, lookback, reviews).
+- **SAB (Service Area Business) Override Bug** — Explicit SAB flag from Google API was being incorrectly overridden by the address-has-digits heuristic. Explicit API flag is now authoritative and never downgraded.
+- **Scanner Race Condition** — Stopped/reset scans continued processing inside the retry loop. Added mid-retry status check to abort immediately when scan is stopped.
+- **No Backoff on Google Blocks** — Non-proxy errors (HTTP 418/429, captcha, unusual traffic) now trigger browser re-launch with proxy rotation + exponential backoff (2s, 4s, 8s) between retries.
+- **Scroll Loading Too Aggressive** — Increased from 3 to 5 no-new-results iterations and 12 to 15 max scroll cycles to capture all 20 results reliably when Google pauses lazy-loading.
+- **SMART Grid Scaling** — Ring distances were scaled by `radiusKm / 3` (hardcoded 3km baseline). Fixed to scale by `radiusKm / maxRingDist` so all radius values produce correct coverage.
+- **Stop Endpoint Missing Validation** — `/api/scans/[id]/stop` now returns 404 for missing scans and 409 for already-stopped scans instead of crashing with 500.
+- **HTTP 200 on Error** — 8 API routes were returning HTTP 200 with error payloads. All catch blocks now return proper 4xx/5xx status codes.
 - **Stale Polling Closure** — Scan detail page had a monolithic `useEffect` causing stale `activeRunId` in the polling interval. Split into separate initial-fetch and polling effects with correct dependency arrays.
-- **Missing React Keys** — Added stable `key` props to competitor lists, business cards, review lists, priority issues, and suggested responses across scan detail and review detail pages.
-- **Prisma Type Casts** — Removed all `(prisma as any)` casts (15+ instances) by regenerating the Prisma client. Typed `where` clauses properly.
+- **Missing React Keys** — Added stable `key` props to competitor lists, business cards, review lists, priority issues, and suggested responses.
+- **Prisma Type Casts** — Removed all `(prisma as any)` casts (15+ instances) by regenerating the Prisma client.
+- **Visibility Score Edge Case** — CTR lookup now caps rank at 20 (`Math.min(rank, 20)`) so ranks >20 don't return 0 CTR.
 
 #### Added
 - **Error Boundaries** — Added `error.tsx` (segment-level) and `global-error.tsx` (root-level) Next.js error boundaries for graceful crash recovery.
+- **Fetch Error Handling** — Scan detail page fetch now checks `res.ok` and handles HTTP errors gracefully instead of silently failing.
 
 #### Changed
-- **Structured Logging** — Migrated 40+ `console.log`/`console.error` calls across 16 API routes to the structured `logger` utility with source tags (SCANNER, PROXY, REVIEWS, SCHEDULER, etc.) for database-persisted, filterable system logs.
+- **Structured Logging** — Migrated 40+ `console.log`/`console.error` calls across 16 API routes to the structured `logger` utility with source tags (SCANNER, PROXY, REVIEWS, SCHEDULER, etc.).
+- **Performance: Memoized Computations** — `totalPoints`, `avgRank`, `visibilityScore`, and `filteredResults` are now wrapped in `useMemo`; `fetchScan` wrapped in `useCallback` to prevent unnecessary re-renders on large datasets.
 - **Browser Type Safety** — Typed Playwright browser variable in lookup route (`Browser | null` instead of `any`).
 - **Anti-Detection Timing** — Mouse movement simulation interval changed from fixed 1s to randomized 3-5s to reduce fingerprinting risk.
 

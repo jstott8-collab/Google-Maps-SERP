@@ -30,20 +30,30 @@ export async function POST(req: Request) {
             placeId
         } = await req.json();
 
+        if (!keyword || typeof keyword !== 'string' || !keyword.trim()) {
+            return NextResponse.json({ error: 'Keyword is required' }, { status: 400 });
+        }
+
         // Use provided coordinates or default to Chicago (Mock)
         const centerLat = typeof lat === 'number' ? lat : 41.8781;
         const centerLng = typeof lng === 'number' ? lng : -87.6298;
 
+        // Validate and clamp bounds
+        const parsedRadius = Math.min(Math.max(parseFloat(radius) || 5, 0.5), 100);
+        const parsedGridSize = Math.min(Math.max(parseInt(gridSize) || 3, 1), 15);
+        const validShapes = ['SQUARE', 'CIRCLE', 'ZIP', 'SMART'];
+        const validFrequencies = ['ONCE', 'DAILY', 'WEEKLY'];
+
         const scan = await prisma.scan.create({
             data: {
-                keyword,
+                keyword: keyword.trim(),
                 centerLat,
                 centerLng,
-                radius: parseFloat(radius) || 5,
-                gridSize: parseInt(gridSize) || 3,
-                shape: shape || 'SQUARE',
+                radius: parsedRadius,
+                gridSize: parsedGridSize,
+                shape: validShapes.includes(shape) ? shape : 'SQUARE',
                 customPoints: customPoints ? JSON.stringify(customPoints) : null,
-                frequency: frequency || 'ONCE',
+                frequency: validFrequencies.includes(frequency) ? frequency : 'ONCE',
                 businessName: businessName || undefined,
                 placeId: placeId || undefined,
                 status: 'PENDING',

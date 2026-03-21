@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, useMemo, useCallback, use } from 'react';
 import dynamic from 'next/dynamic';
 import { RefreshCw, Trophy, List, ChevronLeft, ChevronRight, ExternalLink, MapPin, Layers, Eye, Target, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -79,20 +79,25 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
     const [activeRunId, setActiveRunId] = useState<string | null>(null);
     const [enlargedMap, setEnlargedMap] = useState<{ lat: number, lng: number, rank: number | null | undefined } | null>(null);
 
-    const fetchScan = (runId?: string) => {
+    const fetchScan = useCallback((runId?: string) => {
         const url = runId
             ? `/api/scans/${resolvedParams.id}?runId=${runId}`
             : `/api/scans/${resolvedParams.id}`;
         fetch(url)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
             .then(data => {
                 setScan(data.scan);
                 if (data.runs) setRuns(data.runs);
                 if (data.activeRunId) setActiveRunId(data.activeRunId);
             })
-            .catch(console.error)
+            .catch(err => {
+                console.error('Scan fetch error:', err);
+            })
             .finally(() => setLoading(false));
-    };
+    }, [resolvedParams.id]);
 
     useEffect(() => {
         fetchScan();
@@ -124,23 +129,23 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
 
     if (!scan) return <div>Scan not found</div>;
 
-    const totalPoints = (() => {
+    const totalPoints = useMemo(() => {
         if (scan.customPoints) {
             try {
                 const points = JSON.parse(scan.customPoints);
                 if (Array.isArray(points)) return points.length;
-            } catch (e) {
-                console.error('Failed to parse customPoints for total count', e);
-            }
+            } catch { /* invalid JSON */ }
         }
         return scan.gridSize * scan.gridSize;
-    })();
+    }, [scan.customPoints, scan.gridSize]);
 
     const completedPoints = scan.results.length;
 
-    const avgRank = scan.results.reduce((acc, r) => acc + (r.rank || 20), 0) / (completedPoints || 1);
+    const avgRank = useMemo(() =>
+        scan.results.reduce((acc, r) => acc + (r.rank || 20), 0) / (completedPoints || 1),
+        [scan.results, completedPoints]
+    );
 
-    // Visibility Score: Weighted sum of click-through probabilities by rank
     // CTR model based on industry benchmarks for local pack rankings
     const getCTR = (rank: number | null): number => {
         if (!rank) return 0;
@@ -150,12 +155,15 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
             11: 0.005, 12: 0.005, 13: 0.005, 14: 0.005, 15: 0.005,
             16: 0.005, 17: 0.005, 18: 0.005, 19: 0.005, 20: 0.005
         };
-        return ctrByRank[rank] || 0;
+        return ctrByRank[Math.min(rank, 20)] || 0;
     };
 
-    const visibilityScore = completedPoints > 0
-        ? (scan.results.reduce((acc, r) => acc + getCTR(r.rank), 0) / completedPoints) * 100
-        : 0;
+    const visibilityScore = useMemo(() =>
+        completedPoints > 0
+            ? (scan.results.reduce((acc, r) => acc + getCTR(r.rank), 0) / completedPoints) * 100
+            : 0,
+        [scan.results, completedPoints]
+    );
 
     const getTopResults = (jsonStr: string): RankedBusiness[] => {
         try {
@@ -172,7 +180,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
         setExpandedRows(next);
     };
 
-    const filteredResults = scan.results.filter(r => {
+    const filteredResults = useMemo(() => scan.results.filter(r => {
         if (filter === 'top3') return r.rank && r.rank <= 3;
         if (filter === 'top10') return r.rank && r.rank <= 10;
         if (filter === 'unranked') return !r.rank;
@@ -181,7 +189,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
         if (!searchQuery) return true;
         const results = getTopResults(r.topResults);
         return results.some(b => b.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    });
+    }), [scan.results, filter, searchQuery]);
 
     const handleDelete = async () => {
         if (!confirm('Are you sure you want to delete this report? This action cannot be undone.')) return;
