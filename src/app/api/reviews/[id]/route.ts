@@ -20,6 +20,11 @@ export async function GET(
             return NextResponse.json({ error: 'Analysis not found' }, { status: 404 });
         }
 
+        // Pagination params (default: page 1, 200 per page; use limit=0 for all)
+        const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+        const limit = parseInt(url.searchParams.get('limit') || '200');
+        const fetchAll = limit === 0;
+
         // Get currentRunId via raw SQL (Prisma client doesn't know this field)
         const currentRunIdResult: any[] = await prisma.$queryRaw(
             Prisma.sql`SELECT currentRunId FROM ReviewAnalysis WHERE id = ${id}`
@@ -45,25 +50,40 @@ export async function GET(
         // Determine which run to show
         const activeRunId = requestedRunId || currentRunId || (runs.length > 0 ? runs[runs.length - 1].runId : null);
 
-        // Fetch reviews for the active run via raw SQL (runId filter uses new field)
+        // Build pagination SQL fragments
+        const offset = (page - 1) * limit;
+        const limitClause = fetchAll ? Prisma.sql`` : Prisma.sql` LIMIT ${limit} OFFSET ${offset}`;
+
+        // Fetch reviews for the active run with pagination
         let reviews: any[];
+        let totalReviewCount: number;
         if (activeRunId && runs.some(r => r.runId === activeRunId)) {
             const matchingRun = rawRuns.find(r => (r.runId || `${id}-legacy`) === activeRunId);
             if (matchingRun && matchingRun.runId) {
                 reviews = await prisma.$queryRaw(
-                    Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} AND runId = ${matchingRun.runId} ORDER BY rating ASC`
+                    Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} AND runId = ${matchingRun.runId} ORDER BY rating ASC${limitClause}`
                 );
+                const countResult: any[] = await prisma.$queryRaw(
+                    Prisma.sql`SELECT COUNT(*) as cnt FROM Review WHERE analysisId = ${id} AND runId = ${matchingRun.runId}`
+                );
+                totalReviewCount = Number(countResult[0]?.cnt || 0);
             } else {
-                // Legacy reviews (runId IS NULL)
                 reviews = await prisma.$queryRaw(
-                    Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} AND runId IS NULL ORDER BY rating ASC`
+                    Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} AND runId IS NULL ORDER BY rating ASC${limitClause}`
                 );
+                const countResult: any[] = await prisma.$queryRaw(
+                    Prisma.sql`SELECT COUNT(*) as cnt FROM Review WHERE analysisId = ${id} AND runId IS NULL`
+                );
+                totalReviewCount = Number(countResult[0]?.cnt || 0);
             }
         } else {
-            // No run filter, get all reviews
             reviews = await prisma.$queryRaw(
-                Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} ORDER BY rating ASC`
+                Prisma.sql`SELECT * FROM Review WHERE analysisId = ${id} ORDER BY rating ASC${limitClause}`
             );
+            const countResult: any[] = await prisma.$queryRaw(
+                Prisma.sql`SELECT COUNT(*) as cnt FROM Review WHERE analysisId = ${id}`
+            );
+            totalReviewCount = Number(countResult[0]?.cnt || 0);
         }
 
         // Convert SQLite booleans and BigInts for JSON serialization
@@ -83,6 +103,13 @@ export async function GET(
             reviews,
             runs,
             activeRunId,
+            pagination: fetchAll ? undefined : {
+                page,
+                limit,
+                total: totalReviewCount,
+                totalPages: Math.ceil(totalReviewCount / limit),
+                hasMore: page * limit < totalReviewCount,
+            },
         });
     } catch (error: any) {
         logger.error('Reviews detail GET error', 'REVIEWS', { error: error.message });

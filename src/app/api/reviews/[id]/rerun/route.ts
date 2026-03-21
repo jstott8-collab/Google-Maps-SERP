@@ -83,22 +83,27 @@ export async function POST(
                 },
             });
 
-            // Save reviews with new runId via raw SQL INSERT
+            // Save reviews in batched multi-row INSERTs (50 per batch)
             const chunkSize = 50;
             for (let i = 0; i < reviews.length; i += chunkSize) {
                 const chunk = reviews.slice(i, i + chunkSize);
-                for (const r of chunk) {
-                    await prisma.$executeRawUnsafe(
-                        `INSERT INTO Review (id, analysisId, runId, runAt, reviewerName, reviewerUrl, reviewImage, reviewCount, photoCount, rating, text, publishedDate, responseText, responseDate, sentimentScore, sentimentLabel, isLikelyFake, fakeScore)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL)`,
-                        `${id}-${newRunId}-${i + chunk.indexOf(r)}`,
+                const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL)').join(', ');
+                const values: any[] = [];
+                chunk.forEach((r, idx) => {
+                    values.push(
+                        `${id}-${newRunId}-${i + idx}`,
                         id, newRunId, runAt,
                         r.reviewerName || '', r.reviewerUrl || null, r.reviewImage || null,
                         r.reviewCount ?? null, r.photoCount ?? null, r.rating,
                         r.text || null, r.publishedDate || null,
                         r.responseText || null, r.responseDate || null
                     );
-                }
+                });
+                await prisma.$executeRawUnsafe(
+                    `INSERT INTO Review (id, analysisId, runId, runAt, reviewerName, reviewerUrl, reviewImage, reviewCount, photoCount, rating, text, publishedDate, responseText, responseDate, sentimentScore, sentimentLabel, isLikelyFake, fakeScore)
+                     VALUES ${placeholders}`,
+                    ...values
+                );
                 await sendLog(`Saved ${Math.min(i + chunkSize, reviews.length)} / ${reviews.length} reviews...`);
             }
 
@@ -112,26 +117,33 @@ export async function POST(
                 Prisma.sql`SELECT id, text, rating, reviewCount, photoCount FROM Review WHERE analysisId = ${id} AND runId = ${newRunId}`
             );
 
+            // Batch sentiment updates via Prisma transactions (50 per batch)
             const SENTIMENT_BATCH_SIZE = 50;
             for (let i = 0; i < dbReviews.length; i += SENTIMENT_BATCH_SIZE) {
                 const batch = dbReviews.slice(i, i + SENTIMENT_BATCH_SIZE);
-                for (const r of batch) {
-                    const sent = analyzeSentiment(r.text, r.rating);
+                const updates = batch.map(r => {
+                    const sent = analyzeSentiment(r.text, Number(r.rating));
 
                     let fakeScore = 0;
                     if (!r.text || r.text.length < 20) fakeScore += 15;
-                    if (r.reviewCount !== undefined && r.reviewCount <= 1) fakeScore += 20;
+                    if (r.reviewCount != null && Number(r.reviewCount) <= 1) fakeScore += 20;
                     if (!r.photoCount) fakeScore += 5;
-                    if ((r.rating === 1 || r.rating === 5) && (!r.text || r.text.length < 30)) fakeScore += 10;
-                    if (r.text && r.rating === 5 && sent.label === 'NEGATIVE') fakeScore += 15;
-                    if (r.text && r.rating === 1 && sent.label === 'POSITIVE') fakeScore += 15;
+                    if ((Number(r.rating) === 1 || Number(r.rating) === 5) && (!r.text || r.text.length < 30)) fakeScore += 10;
+                    if (r.text && Number(r.rating) === 5 && sent.label === 'NEGATIVE') fakeScore += 15;
+                    if (r.text && Number(r.rating) === 1 && sent.label === 'POSITIVE') fakeScore += 15;
 
-                    await prisma.$executeRawUnsafe(
-                        `UPDATE Review SET sentimentScore = ?, sentimentLabel = ?, fakeScore = ?, isLikelyFake = ? WHERE id = ?`,
-                        sent.compound, sent.label, Math.min(fakeScore, 100), fakeScore >= 50 ? 1 : 0, r.id
-                    );
-                }
+                    return prisma.review.update({
+                        where: { id: r.id },
+                        data: {
+                            sentimentScore: sent.compound,
+                            sentimentLabel: sent.label,
+                            fakeScore: Math.min(fakeScore, 100),
+                            isLikelyFake: fakeScore >= 50,
+                        },
+                    });
+                });
 
+                await prisma.$transaction(updates);
                 if (i % 200 === 0) await sendLog(`Analyzed ${Math.min(i + SENTIMENT_BATCH_SIZE, dbReviews.length)} / ${dbReviews.length} reviews...`);
             }
 

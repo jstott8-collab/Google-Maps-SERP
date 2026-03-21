@@ -49,6 +49,7 @@ export async function POST(req: Request) {
 
     // Run analysis loosely detached but piping logs
     (async () => {
+        let analysisId: string | null = null;
         try {
             const body = await req.json();
             const { url, businessName, totalReviews, averageRating, placeId } = body;
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
                     status: 'SCRAPING',
                 },
             });
+            analysisId = analysis.id;
 
             const runId = `${analysis.id}-run0`;
             const runAt = new Date().toISOString();
@@ -101,22 +103,27 @@ export async function POST(req: Request) {
                 },
             });
 
-            // Save reviews in chunks via raw SQL (runId/runAt are new fields)
+            // Save reviews in batched multi-row INSERTs (50 per batch)
             const chunkSize = 50;
             for (let i = 0; i < reviews.length; i += chunkSize) {
                 const chunk = reviews.slice(i, i + chunkSize);
-                for (const r of chunk) {
-                    await prisma.$executeRawUnsafe(
-                        `INSERT INTO Review (id, analysisId, runId, runAt, reviewerName, reviewerUrl, reviewImage, reviewCount, photoCount, rating, text, publishedDate, responseText, responseDate, sentimentScore, sentimentLabel, isLikelyFake, fakeScore)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL)`,
-                        `${analysis.id}-r0-${i + chunk.indexOf(r)}`,
+                const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL)').join(', ');
+                const values: any[] = [];
+                chunk.forEach((r, idx) => {
+                    values.push(
+                        `${analysis.id}-r0-${i + idx}`,
                         analysis.id, runId, runAt,
                         r.reviewerName || '', r.reviewerUrl || null, r.reviewImage || null,
                         r.reviewCount ?? null, r.photoCount ?? null, r.rating,
                         r.text || null, r.publishedDate || null,
                         r.responseText || null, r.responseDate || null
                     );
-                }
+                });
+                await prisma.$executeRawUnsafe(
+                    `INSERT INTO Review (id, analysisId, runId, runAt, reviewerName, reviewerUrl, reviewImage, reviewCount, photoCount, rating, text, publishedDate, responseText, responseDate, sentimentScore, sentimentLabel, isLikelyFake, fakeScore)
+                     VALUES ${placeholders}`,
+                    ...values
+                );
                 await sendLog(`Saved ${Math.min(i + chunkSize, reviews.length)} / ${reviews.length} reviews...`);
             }
 
@@ -175,6 +182,17 @@ export async function POST(req: Request) {
         } catch (error: any) {
             logger.error('Review stream error', 'REVIEWS', { error: error.message });
             await sendLog(`Error: ${error.message}`, 'error');
+
+            // Mark analysis as FAILED so it doesn't stay stuck in SCRAPING/ANALYZING
+            try {
+                if (analysisId) {
+                    await prisma.reviewAnalysis.update({
+                        where: { id: analysisId },
+                        data: { status: 'FAILED', error: error.message },
+                    });
+                }
+            } catch { /* ignore cleanup errors */ }
+
             await writer.close();
         }
     })();

@@ -718,7 +718,12 @@ async function scrollAndCollectReviews(
     log: (msg: string) => void
 ): Promise<ScrapedReview[]> {
     const startTime = Date.now();
-    const GLOBAL_TIMEOUT_MS = 45 * 60 * 1000;
+    // Adaptive timeout: 45 min for small, 90 min for 500+, 120 min for 1000+
+    const GLOBAL_TIMEOUT_MS = expectedTotal > 1000
+        ? 120 * 60 * 1000
+        : expectedTotal > 500
+            ? 90 * 60 * 1000
+            : 45 * 60 * 1000;
 
     // ═══ STREAM 1: Network Interception ═══
     const networkReviews = new Map<string, ScrapedReview>();
@@ -773,20 +778,21 @@ async function scrollAndCollectReviews(
     });
 
     // ═══ STREAM 2: DOM Scrolling (triggers network requests) ═══
-    const maxScrollAttempts = Math.min(expectedTotal * 4, 6000);
+    const maxScrollAttempts = Math.min(expectedTotal * 5, 8000);
     let lastDOMCount = 0;
+    let lastNetworkCount = 0;
     let noNewCount = 0;
     let lastLoggedCount = 0;
 
     const getScrollDelay = (loaded: number): number => {
-        // Faster delays since we're primarily triggering network requests
+        // Faster delays — we primarily trigger network requests, DOM is secondary
         let base: number;
-        if (loaded < 100) base = 800;
-        else if (loaded < 300) base = 1200;
-        else if (loaded < 500) base = 1500;
-        else if (loaded < 1000) base = 2000;
-        else base = 2500;
-        return base + Math.floor(Math.random() * 600) - 300;
+        if (loaded < 100) base = 600;
+        else if (loaded < 300) base = 800;
+        else if (loaded < 500) base = 1000;
+        else if (loaded < 1000) base = 1200;
+        else base = 1500; // Was 2500 — too slow for 1k+ reviews
+        return base + Math.floor(Math.random() * 400) - 200;
     };
 
     const getScrollDistance = (): number => 1200 + Math.floor(Math.random() * 1200);
@@ -840,7 +846,7 @@ async function scrollAndCollectReviews(
 
     for (let i = 0; i < maxScrollAttempts; i++) {
         if (Date.now() - startTime > GLOBAL_TIMEOUT_MS) {
-            log(`⚠️ Global timeout (45 min). Network: ${networkReviews.size}, DOM: ${lastDOMCount}`);
+            log(`⚠️ Global timeout (${Math.round(GLOBAL_TIMEOUT_MS / 60000)} min). Network: ${networkReviews.size}, DOM: ${lastDOMCount}`);
             break;
         }
 
@@ -867,6 +873,14 @@ async function scrollAndCollectReviews(
         // Expand "More" buttons periodically
         if (i % 4 === 0) await expandMoreButtons();
 
+        // Proactively click "Load More" button every 8 cycles (Google shows this for large lists)
+        if (i % 8 === 7) {
+            await page.evaluate(() => {
+                const btn = document.querySelector('button.HzLjNd, button[jsaction*="pane.review-list"], button[aria-label*="more reviews"], button[aria-label*="More reviews"]');
+                if (btn) (btn as HTMLElement).click();
+            });
+        }
+
         // Count DOM reviews
         const domCount = await countReviewsInDOM();
         const totalCollected = Math.max(domCount, networkReviews.size);
@@ -879,8 +893,9 @@ async function scrollAndCollectReviews(
             lastLoggedCount = totalCollected;
         }
 
-        // Stall detection
-        if (domCount === lastDOMCount && networkReviews.size === lastDOMCount) {
+        // Stall detection — both DOM and network must be stalled
+        const currentNetworkCount = networkReviews.size;
+        if (domCount === lastDOMCount && currentNetworkCount === lastNetworkCount) {
             noNewCount++;
 
             // Phase 1: Jiggle scroll
@@ -964,6 +979,7 @@ async function scrollAndCollectReviews(
             noNewCount = 0;
         }
         lastDOMCount = domCount;
+        lastNetworkCount = currentNetworkCount;
 
         // Completion check (use max of both sources)
         if (totalCollected >= expectedTotal) {

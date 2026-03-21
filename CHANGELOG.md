@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-03-22
+
+### Review Module Reliability Overhaul (1000+ Reviews)
+
+Deep analysis and fix of the entire review pipeline to handle businesses with 1000+ reviews reliably.
+
+#### Fixed
+- **Stall Detection Bug (CRITICAL)** — `networkReviews.size` was compared against `lastDOMCount` instead of `lastNetworkCount`, causing false stall triggers that terminated scraping prematurely. Network and DOM counts are now tracked independently.
+- **Scroll Speed Too Slow** — Base scroll delay for 1000+ reviews reduced from 2500ms to 1500ms. Faster delays across all tiers (600/800/1000/1200/1500ms vs 800/1200/1500/2000/2500ms). This ~doubles throughput for large collections.
+- **Adaptive Timeout** — Global timeout now scales with expected review count: 45 min (< 500 reviews), 90 min (500–1000), 120 min (1000+). Previously hardcoded at 45 min for all sizes.
+- **Max Scroll Attempts Increased** — From `expectedTotal × 4` (cap 6000) to `expectedTotal × 5` (cap 8000), giving more runway for large collections.
+- **Proactive "Load More" Button** — Now clicks Google's "Load More" button every 8 scroll cycles during normal operation. Previously only clicked during stall recovery, missing reviews that required explicit loading.
+- **One-by-One DB Inserts (CRITICAL)** — Both POST and rerun routes were inserting reviews one at a time (1000 INSERT statements for 1000 reviews). Replaced with multi-row batch INSERTs (50 per statement), reducing DB round-trips by 98%.
+- **Rerun Sentiment Updates Not Batched** — Rerun route was updating sentiment scores one-by-one via raw SQL. Replaced with Prisma `$transaction` batches of 50, matching the POST route pattern.
+- **Stuck SCRAPING/ANALYZING Status** — POST route catch block now marks the analysis as FAILED with error message, preventing permanently stuck records.
+- **No Server-Side Pagination** — Review detail GET now supports `?page=N&limit=N` query params (default: page 1, 200 per page). Returns `pagination` object with `total`, `totalPages`, `hasMore`. Use `limit=0` for all reviews (backwards compatible).
+
+---
+
 ## [1.8.0] - 2026-03-22
 
 ### Competitive Intelligence & Analytics Platform
