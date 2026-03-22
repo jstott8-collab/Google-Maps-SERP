@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, Badge } from '@/components/ui';
+import { Card } from '@/components/ui';
 import {
     BarChart3,
     Users,
@@ -11,16 +11,11 @@ import {
     Phone,
     Globe,
     MapPin,
-    ChevronDown,
-    ChevronUp,
-    ExternalLink,
-    Copy,
     CheckCircle2,
     AlertTriangle,
-    Lightbulb,
     BrainCircuit
 } from 'lucide-react';
-import { analyzeCompetitors, generateReviewLink, cidToMapsUrl, type CompetitorIntelligence, type CompetitorProfile } from '@/lib/analysis';
+import { analyzeCompetitors, type CompetitorIntelligence } from '@/lib/analysis';
 import { StrategicAnalysis } from './StrategicAnalysis';
 
 interface CompetitorIntelligenceProps {
@@ -31,9 +26,7 @@ interface CompetitorIntelligenceProps {
 
 export function CompetitorIntelligenceDashboard({ results, targetBusinessName, totalPoints }: CompetitorIntelligenceProps) {
     const [analysis, setAnalysis] = useState<CompetitorIntelligence | null>(null);
-    const [expandedCompetitor, setExpandedCompetitor] = useState<string | null>(null);
-    const [copiedId, setCopiedId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'competitors' | 'categories' | 'reviews' | 'profiles' | 'strategic'>('competitors');
+    const [activeTab, setActiveTab] = useState<'categories' | 'reviews' | 'profiles' | 'strategic'>('strategic');
 
     useEffect(() => {
         if (results && results.length > 0) {
@@ -41,12 +34,6 @@ export function CompetitorIntelligenceDashboard({ results, targetBusinessName, t
             setAnalysis(intel);
         }
     }, [results, targetBusinessName]);
-
-    const copyToClipboard = (text: string, id: string) => {
-        navigator.clipboard.writeText(text);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-    };
 
     if (!analysis) {
         return (
@@ -110,7 +97,7 @@ export function CompetitorIntelligenceDashboard({ results, targetBusinessName, t
 
             {/* Tab Navigation */}
             <div className="flex gap-2 border-b border-gray-200 pb-2 overflow-x-auto">
-                {(['competitors', 'categories', 'reviews', 'profiles', 'strategic'] as const).map(tab => (
+                {(['strategic', 'categories', 'reviews', 'profiles'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -132,39 +119,13 @@ export function CompetitorIntelligenceDashboard({ results, targetBusinessName, t
             </div>
 
             {/* Tab Content */}
-            {activeTab === 'competitors' && (
-                <Card className="divide-y divide-gray-100 border border-gray-100">
-                    <div className="p-4 bg-gray-50">
-                        <div className="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                            <div className="col-span-4">Business</div>
-                            <div className="col-span-2 text-center">Appearances</div>
-                            <div className="col-span-2 text-center">Avg Rank</div>
-                            <div className="col-span-2 text-center">Rating</div>
-                            <div className="col-span-2 text-center">Reviews</div>
-                        </div>
-                    </div>
-                    {competitors.map((competitor, index) => (
-                        <CompetitorRow
-                            key={competitor.name}
-                            competitor={competitor}
-                            index={index}
-                            totalPoints={totalPoints}
-                            isExpanded={expandedCompetitor === competitor.name}
-                            onToggle={() => setExpandedCompetitor(
-                                expandedCompetitor === competitor.name ? null : competitor.name
-                            )}
-                            onCopy={copyToClipboard}
-                            copiedId={copiedId}
-                        />
-                    ))}
-                </Card>
-            )}
-
             {activeTab === 'strategic' && (
                 <StrategicAnalysis
                     competitors={competitors}
                     categoryMetrics={categoryMetrics}
                     reviewMetrics={reviewMetrics}
+                    targetBusinessName={targetBusinessName}
+                    rawResults={results}
                 />
             )}
             {activeTab === 'categories' && (
@@ -300,191 +261,6 @@ export function CompetitorIntelligenceDashboard({ results, targetBusinessName, t
                         </div>
                     </div>
                 </Card>
-            )}
-        </div>
-    );
-}
-
-interface CompetitorRowProps {
-    competitor: CompetitorProfile;
-    index: number;
-    totalPoints: number;
-    isExpanded: boolean;
-    onToggle: () => void;
-    onCopy: (text: string, id: string) => void;
-    copiedId: string | null;
-}
-
-function CompetitorRow({ competitor, index, totalPoints, isExpanded, onToggle, onCopy, copiedId }: CompetitorRowProps) {
-    const dominance = ((competitor.appearances / totalPoints) * 100).toFixed(0);
-
-    return (
-        <div className="bg-white hover:bg-gray-50 transition-colors">
-            <div
-                className="p-4 cursor-pointer"
-                onClick={onToggle}
-            >
-                <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-4 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                            {index + 1}
-                        </div>
-                        <div className="min-w-0">
-                            <div className="font-medium text-gray-900">{competitor.name}</div>
-                            <div className="text-xs text-gray-500">{competitor.category || 'Unknown category'}</div>
-                        </div>
-                        {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                    </div>
-                    <div className="col-span-2 text-center">
-                        <Badge className={`${parseInt(dominance) > 30 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                            {competitor.appearances} ({dominance}%)
-                        </Badge>
-                    </div>
-                    <div className="col-span-2 text-center">
-                        <span className="font-medium">{competitor.avgRank.toFixed(1)}</span>
-                        <span className="text-xs text-gray-400 ml-1">
-                            ({competitor.bestRank}-{competitor.worstRank})
-                        </span>
-                    </div>
-                    <div className="col-span-2 text-center">
-                        {competitor.rating ? (
-                            <div className="flex items-center justify-center gap-1">
-                                <Star size={14} className="text-amber-400 fill-amber-400" />
-                                <span className="font-medium">{competitor.rating.toFixed(1)}</span>
-                            </div>
-                        ) : (
-                            <span className="text-gray-400">-</span>
-                        )}
-                    </div>
-                    <div className="col-span-2 text-center font-medium">
-                        {competitor.reviews?.toLocaleString() || '-'}
-                    </div>
-                </div>
-            </div>
-
-            {isExpanded && (
-                <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        {competitor.address && (
-                            <div>
-                                <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Address</div>
-                                <div className="text-gray-700">{competitor.address}</div>
-                            </div>
-                        )}
-                        {competitor.phone && (
-                            <div>
-                                <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Phone</div>
-                                <div className="text-gray-700">{competitor.phone}</div>
-                            </div>
-                        )}
-                        {competitor.website && (
-                            <div>
-                                <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Website</div>
-                                <a href={competitor.website} target="_blank" rel="noopener noreferrer"
-                                    className="text-indigo-600 hover:underline flex items-center gap-1">
-                                    Visit <ExternalLink size={12} />
-                                </a>
-                            </div>
-                        )}
-                        {competitor.profileCompleteness !== undefined && (
-                            <div>
-                                <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Profile Score</div>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full ${competitor.profileCompleteness >= 70 ? 'bg-green-500' :
-                                                competitor.profileCompleteness >= 40 ? 'bg-amber-500' : 'bg-red-500'
-                                                }`}
-                                            style={{ width: `${competitor.profileCompleteness}%` }}
-                                        />
-                                    </div>
-                                    <span className="font-medium">{competitor.profileCompleteness}%</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* IDs and Tools */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-3">
-                        {competitor.cid && (
-                            <button
-                                onClick={() => onCopy(competitor.cid!, `cid-${competitor.name}`)}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
-                            >
-                                {copiedId === `cid-${competitor.name}` ? (
-                                    <CheckCircle2 size={14} className="text-green-500" />
-                                ) : (
-                                    <Copy size={14} className="text-gray-400" />
-                                )}
-                                CID: {competitor.cid}
-                            </button>
-                        )}
-                        {competitor.placeId && (
-                            <>
-                                <button
-                                    onClick={() => onCopy(competitor.placeId!, `pid-${competitor.name}`)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
-                                >
-                                    {copiedId === `pid-${competitor.name}` ? (
-                                        <CheckCircle2 size={14} className="text-green-500" />
-                                    ) : (
-                                        <Copy size={14} className="text-gray-400" />
-                                    )}
-                                    Place ID
-                                </button>
-                                <button
-                                    onClick={() => onCopy(generateReviewLink(competitor.placeId!), `review-${competitor.name}`)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-                                >
-                                    {copiedId === `review-${competitor.name}` ? (
-                                        <CheckCircle2 size={14} className="text-green-500" />
-                                    ) : (
-                                        <Copy size={14} />
-                                    )}
-                                    Copy Review Link
-                                </button>
-                            </>
-                        )}
-                        {competitor.cid && (
-                            <a
-                                href={cidToMapsUrl(competitor.cid)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
-                            >
-                                <ExternalLink size={14} className="text-gray-400" />
-                                Open in Maps
-                            </a>
-                        )}
-                        {competitor.businessProfileId && (
-                            <button
-                                onClick={() => onCopy(competitor.businessProfileId!, `bpid-${competitor.name}`)}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
-                            >
-                                {copiedId === `bpid-${competitor.name}` ? (
-                                    <CheckCircle2 size={14} className="text-green-500" />
-                                ) : (
-                                    <Copy size={14} className="text-gray-400" />
-                                )}
-                                BPID: {competitor.businessProfileId}
-                            </button>
-                        )}
-                    </div>
-
-                    {competitor.allCategories && competitor.allCategories.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                            <div className="text-xs text-gray-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-                                <span>All Categories</span>
-                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-[10px]">{competitor.allCategories.length}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {competitor.allCategories.map((cat, i) => (
-                                    <Badge key={i} className="bg-indigo-50 text-indigo-700 text-xs">{cat}</Badge>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
             )}
         </div>
     );
