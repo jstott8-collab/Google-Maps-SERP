@@ -121,22 +121,6 @@ npm run dev
 
 Open **http://localhost:3000** in your browser.
 
-### One-Click Scripts
-
-**macOS:**
-```bash
-./install_mac.sh    # First-time setup
-./start.sh          # Launch
-./update_mac.sh     # Update to latest
-```
-
-**Windows:**
-```powershell
-install_windows.bat   # First-time setup
-start.bat             # Launch
-update_windows.bat    # Update to latest
-```
-
 ---
 
 ## Privacy & Data Ownership
@@ -227,7 +211,7 @@ GBP Rank Tracker runs **100% locally on your machine**:
 ### v1.5.0 — 2026-02-27
 **History & Scheduling**
 - Added timeline bar showing all historical runs for a scan — visualize rank changes over time
-- Added one-click in-app update system (git pull + npm install + migrate)
+- Added one-click in-app update system with auto-restart
 - Added schedule management page — view, edit, and cancel all scheduled scans from one place
 
 ---
