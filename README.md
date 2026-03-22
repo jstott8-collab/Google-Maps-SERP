@@ -1,8 +1,8 @@
-# 📍 GeoRanker - Local SEO Intelligence Grid
+# 📍 GBP Rank Tracker - Local SEO Intelligence Grid
 
-**GeoRanker** is an enterprise-grade, local-hosted tool for tracking Google Maps (GMB) rankings using a hyper-local grid system. It mimics real user behavior to provide 100% accurate, location-specific ranking data for SEO professionals and business owners.
+**GBP Rank Tracker** is an enterprise-grade, local-hosted tool for tracking Google Maps (GMB) rankings using a hyper-local grid system. It mimics real user behavior to provide 100% accurate, location-specific ranking data for SEO professionals and business owners.
 
-![GeoRanker Dashboard](https://github.com/danishfareed/Google-Maps-SERP/blob/main/public/preview.png?raw=true)
+![GBP Rank Tracker Dashboard](https://github.com/danishfareed/Google-Maps-SERP/blob/main/public/preview.png?raw=true)
 
 ---
 
@@ -80,7 +80,7 @@ update_windows.bat
 
 ### After Installation
 
-To start GeoRanker after installation:
+To start GBP Rank Tracker after installation:
 - **macOS**: Run `./start.sh`
 - **Windows**: Double-click `start.bat`
 
@@ -113,7 +113,7 @@ If you encounter issues with proxies or scan failures, visit **Settings > Teleme
 ---
 
 ## 🏠 Private & Local
-GeoRanker runs entirely on your machine. All scan data, proxy settings, and logs are stored in a local SQLite database (`dev.db`). No external APIs see your keywords or rankings except for the direct extraction from Google Maps.
+GBP Rank Tracker runs entirely on your machine. All scan data, proxy settings, and logs are stored in a local SQLite database (`dev.db`). No external APIs see your keywords or rankings except for the direct extraction from Google Maps.
 
 ---
 
