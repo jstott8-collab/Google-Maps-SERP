@@ -93,8 +93,6 @@ extraResources:
       - "!node_modules/@next/swc-linux-*/**"
       - "!node_modules/@next/swc-win32-*/**"
       - "!node_modules/@next/swc-darwin-*/**"
-  - from: ".next/static"
-    to: "standalone/.next/static"
   - from: "data/postal"
     to: "data/postal"
     filter:

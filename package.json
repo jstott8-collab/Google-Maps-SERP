@@ -1,6 +1,6 @@
 {
   "name": "gbpranktracker",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "GBP Rank Tracker — Local SEO Intelligence Platform",
   "main": "electron/dist/main.js",
   "scripts": {
