@@ -36,6 +36,10 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Install Python setuptools (native module builds)
+        if: runner.os == 'macOS'
+        run: pip3 install setuptools --break-system-packages || pip3 install setuptools || true
+
       - name: Install dependencies
         run: npm ci
 
@@ -45,14 +49,6 @@ jobs:
       - name: Create database for build
         run: npx prisma db push --skip-generate --accept-data-loss
 
-      - name: Debug environment
-        run: |
-          node --version
-          npx next --version
-          echo "DATABASE_URL=$DATABASE_URL"
-          ls -la prisma/ || true
-          cat next.config.ts
-
       - name: Build Next.js
         run: npx next build
 
@@ -61,6 +57,9 @@ jobs:
 
       - name: Compile Electron TypeScript
         run: npm run electron:compile
+
+      - name: List standalone output
+        run: node -e "const fs=require('fs');const p=require('path');const d=p.join('.next','standalone');console.log(fs.existsSync(d)?'standalone exists':'NO standalone');if(fs.existsSync(d)){const f=fs.readdirSync(d);console.log('Files:',f.slice(0,20).join(', '));console.log('server.js exists:',fs.existsSync(p.join(d,'server.js')))}"
 
       - name: Build Electron app (macOS)
         if: matrix.platform == 'mac'
