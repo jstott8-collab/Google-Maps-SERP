@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -40,8 +41,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Create empty database for build
+        run: node -e "const fs=require('fs'); fs.mkdirSync('prisma',{recursive:true}); fs.writeFileSync('prisma/dev.db','')"
+
       - name: Build Next.js
-        run: npm run build
+        run: npx next build
 
       - name: Copy static assets
         run: node scripts/copy-static.js
