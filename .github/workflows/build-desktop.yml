@@ -36,7 +36,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install Python setuptools (native module builds)
+      - name: Install Python setuptools (macOS)
         if: runner.os == 'macOS'
         run: pip3 install setuptools --break-system-packages || pip3 install setuptools || true
 
@@ -58,12 +58,12 @@ jobs:
       - name: Compile Electron TypeScript
         run: npm run electron:compile
 
-      - name: List standalone output
-        run: node -e "const fs=require('fs');const p=require('path');const d=p.join('.next','standalone');console.log(fs.existsSync(d)?'standalone exists':'NO standalone');if(fs.existsSync(d)){const f=fs.readdirSync(d);console.log('Files:',f.slice(0,20).join(', '));console.log('server.js exists:',fs.existsSync(p.join(d,'server.js')))}"
+      - name: Rebuild better-sqlite3 for Electron
+        run: npx @electron/rebuild -f -w better-sqlite3
 
       - name: Build Electron app (macOS)
         if: matrix.platform == 'mac'
-        run: npx electron-builder --mac --publish always
+        run: DEBUG=electron-builder npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
