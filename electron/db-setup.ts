@@ -211,13 +211,21 @@ export function setupDatabase(): void {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  // Check for legacy location (web dev → desktop migration)
+  // Check for legacy location (web dev → desktop migration).
+  // Search multiple candidate paths since process.cwd() is unpredictable in packaged apps.
   if (!fs.existsSync(dbPath)) {
-    console.log('[db-setup] Database not found, checking legacy location...');
-    const legacyDb = path.join(process.cwd(), 'prisma', 'dev.db');
-    if (fs.existsSync(legacyDb)) {
-      fs.copyFileSync(legacyDb, dbPath);
-      console.log('[db-setup] Migrated database from legacy location');
+    console.log('[db-setup] Database not found, checking legacy locations...');
+    const legacyCandidates = [
+      path.join(process.cwd(), 'prisma', 'dev.db'),
+      path.join(path.dirname(path.dirname(dbDir)), 'prisma', 'dev.db'), // project root
+      path.join(require('os').homedir(), 'Google-Maps-SERP', 'prisma', 'dev.db'),
+    ];
+    for (const candidate of legacyCandidates) {
+      if (fs.existsSync(candidate)) {
+        fs.copyFileSync(candidate, dbPath);
+        console.log('[db-setup] Migrated database from', candidate);
+        break;
+      }
     }
   }
 
@@ -239,8 +247,12 @@ export function setupDatabase(): void {
       try {
         db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${type}`);
         console.log(`[db-setup] Added column ${table}.${column}`);
-      } catch {
-        // Column already exists — expected
+      } catch (e: any) {
+        // Only swallow "column already exists" — rethrow anything else (disk full, corruption, etc.)
+        if (!e?.message?.toLowerCase().includes('duplicate column') &&
+            !e?.message?.toLowerCase().includes('already exists')) {
+          throw e;
+        }
       }
     }
 
@@ -248,7 +260,11 @@ export function setupDatabase(): void {
     console.log('[db-setup] Database ready');
   } catch (err: any) {
     console.error('[db-setup] Schema setup error:', err.message);
-    // If better-sqlite3 isn't available, fall back to prisma CLI
+    // In packaged app, better-sqlite3 must work — npx/prisma CLI is not available
+    if (isPackaged()) {
+      throw new Error(`Database initialization failed: ${err.message}\n\nThe app cannot continue without a working database.`);
+    }
+    // Dev only: fall back to prisma CLI
     fallbackPrismaSetup(dbPath);
   }
 }

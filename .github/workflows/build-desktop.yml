@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install Python setuptools (macOS)
@@ -51,6 +51,9 @@ jobs:
 
       - name: Build Next.js
         run: npx next build
+
+      - name: Verify standalone output exists
+        run: node -e "const fs=require('fs'); if(!fs.existsSync('.next/standalone/server.js')){console.error('ERROR: .next/standalone/server.js missing — Next.js build did not produce standalone output');process.exit(1);} console.log('Standalone output verified.');"
 
       - name: Copy static assets
         run: node scripts/copy-static.js
@@ -82,6 +85,8 @@ jobs:
   update-release:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Update release notes
         uses: actions/github-script@v7

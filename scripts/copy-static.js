@@ -7,8 +7,13 @@
 const fs = require('fs');
 const path = require('path');
 
-function copyDirSync(src, dest) {
+function copyDirSync(src, dest, required = false) {
   if (!fs.existsSync(src)) {
+    if (required) {
+      console.error(`[copy-static] ERROR: Required directory not found: ${src}`);
+      console.error('[copy-static] Run "npx next build" first.');
+      process.exit(1);
+    }
     console.log(`[copy-static] Skipping ${src} (not found)`);
     return;
   }
@@ -26,16 +31,23 @@ function copyDirSync(src, dest) {
 
 const root = path.resolve(__dirname, '..');
 
-// Copy .next/static → .next/standalone/.next/static
+// Verify standalone output exists before copying into it
+const standaloneDir = path.join(root, '.next', 'standalone');
+if (!fs.existsSync(standaloneDir)) {
+  console.error('[copy-static] ERROR: .next/standalone not found — run "npx next build" first.');
+  process.exit(1);
+}
+
+// Copy .next/static → .next/standalone/.next/static (required)
 const staticSrc = path.join(root, '.next', 'static');
 const staticDest = path.join(root, '.next', 'standalone', '.next', 'static');
 console.log('[copy-static] Copying .next/static...');
-copyDirSync(staticSrc, staticDest);
+copyDirSync(staticSrc, staticDest, true);
 
-// Copy public → .next/standalone/public
+// Copy public → .next/standalone/public (optional — may not exist in all setups)
 const publicSrc = path.join(root, 'public');
 const publicDest = path.join(root, '.next', 'standalone', 'public');
 console.log('[copy-static] Copying public/...');
-copyDirSync(publicSrc, publicDest);
+copyDirSync(publicSrc, publicDest, false);
 
 console.log('[copy-static] Done.');

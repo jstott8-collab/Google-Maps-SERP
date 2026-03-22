@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, spawnSync } from 'child_process';
 import {
   getDatabaseUrl,
   getDatabasePath,
@@ -47,6 +47,8 @@ let splashWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
 let serverPort: number = 3000;
 let isQuitting = false;
+let serverRestartCount = 0;
+const MAX_SERVER_RESTARTS = 3;
 
 // Window state persistence
 const STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
@@ -63,7 +65,10 @@ function loadWindowState(): WindowState {
       const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
       if (data.width && data.height) return data;
     }
-  } catch { /* use defaults */ }
+  } catch {
+    // Corrupted state file — delete it so it doesn't fail on every launch
+    try { fs.unlinkSync(STATE_FILE); } catch { /* best effort */ }
+  }
   return { width: 1440, height: 900 };
 }
 
@@ -329,17 +334,26 @@ async function startNextServer(): Promise<number> {
     log('ERROR', 'Server process error:', err.message);
   });
 
-  // Auto-restart if server crashes unexpectedly
+  // Auto-restart if server crashes unexpectedly (max 3 attempts)
   serverProcess.on('exit', (code, signal) => {
     log('INFO', `Server exited with code ${code}, signal ${signal}`);
     if (!isQuitting && code !== 0 && code !== null) {
-      log('ERROR', 'Server crashed, restarting in 2s...');
+      serverRestartCount++;
+      if (serverRestartCount > MAX_SERVER_RESTARTS) {
+        log('ERROR', `Server crashed ${MAX_SERVER_RESTARTS} times, giving up`);
+        showFatalError('Server Error', `The app server crashed ${MAX_SERVER_RESTARTS} times and could not recover. Please reopen the app.\n\nIf this keeps happening, check the logs for details.`);
+        return;
+      }
+      log('ERROR', `Server crashed (attempt ${serverRestartCount}/${MAX_SERVER_RESTARTS}), restarting in 2s...`);
       setTimeout(() => {
         if (!isQuitting) {
           startNextServer()
             .then((newPort) => {
               serverPort = newPort;
-              mainWindow?.loadURL(`http://127.0.0.1:${serverPort}`);
+              serverRestartCount = 0; // reset on successful restart
+              mainWindow?.loadURL(`http://127.0.0.1:${serverPort}`).catch((err) => {
+                log('ERROR', 'Failed to reload window after server restart:', err.message);
+              });
               log('INFO', `Server restarted on port ${serverPort}`);
             })
             .catch((err) => {
@@ -384,11 +398,12 @@ function killServer(): void {
     serverProcess.removeAllListeners('exit'); // prevent restart on intentional kill
 
     if (process.platform === 'win32' && serverProcess.pid) {
-      // On Windows, kill the entire process tree. A simple .kill() only kills
-      // the parent — the Node.js server child process would become orphaned.
+      // On Windows, kill the entire process tree synchronously.
+      // async spawn() leaves orphaned child processes if the parent exits first.
       try {
-        spawn('taskkill', ['/pid', String(serverProcess.pid), '/T', '/F'], {
+        spawnSync('taskkill', ['/pid', String(serverProcess.pid), '/T', '/F'], {
           stdio: 'ignore',
+          timeout: 5000,
         });
       } catch {
         serverProcess.kill();

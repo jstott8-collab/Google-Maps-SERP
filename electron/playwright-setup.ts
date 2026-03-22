@@ -1,6 +1,5 @@
 import { BrowserWindow } from 'electron';
 import { execFile } from 'child_process';
-import path from 'path';
 import fs from 'fs';
 import { getPlaywrightBrowsersPath, getChromiumExecutablePath } from './paths';
 
@@ -34,7 +33,8 @@ export async function ensurePlaywrightBrowser(win: BrowserWindow | null): Promis
 
     // Use npx playwright-core to install chromium
     const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const child = execFile(npxCmd, ['playwright-core', 'install', 'chromium'], { env, timeout: 300000 }, (err) => {
+    // 10 min timeout — Chromium is ~130MB and slow connections need the headroom
+    const child = execFile(npxCmd, ['playwright-core', 'install', 'chromium'], { env, timeout: 600000 }, (err) => {
       if (err) {
         console.error('[playwright-setup] Download failed:', err.message);
         win?.webContents.send('playwright-status', {
