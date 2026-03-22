@@ -13,6 +13,7 @@ import {
 import { setupDatabase } from './db-setup';
 import { initUpdater, registerVersionHandlers } from './updater';
 import { ensurePlaywrightBrowser, setPlaywrightEnvVars } from './playwright-setup';
+import { writeCrashReport, checkAndReportPreviousCrash } from './crash-reporter';
 
 // ─── File Logger ──────────────────────────────────────────────────────────
 // Writes logs to userData/logs/ for crash diagnostics
@@ -549,6 +550,9 @@ app.whenReady().then(async () => {
     mainWindow.show();
     closeSplash();
 
+    // Check for crash reports from the previous session
+    checkAndReportPreviousCrash();
+
     // Register IPC handlers
     registerVersionHandlers();
     registerUtilityHandlers();
@@ -565,6 +569,15 @@ app.whenReady().then(async () => {
 
     mainWindow.on('closed', () => {
       mainWindow = null;
+    });
+
+    // Capture renderer process crashes
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+      if (details.reason !== 'clean-exit') {
+        const err = new Error(`Renderer process gone: ${details.reason} (exitCode ${details.exitCode})`);
+        log('ERROR', err.message);
+        writeCrashReport(err, LOG_FILE);
+      }
     });
 
   } catch (err: any) {
@@ -621,10 +634,12 @@ function closeSplash(): void {
 // ─── Global Error Handlers ────────────────────────────────────────────────
 process.on('uncaughtException', (err) => {
   log('ERROR', 'Uncaught exception:', err.message, err.stack);
+  writeCrashReport(err, LOG_FILE);
 });
 
 process.on('unhandledRejection', (err: any) => {
   log('ERROR', 'Unhandled rejection:', err?.message || err);
+  if (err instanceof Error) writeCrashReport(err, LOG_FILE);
 });
 
 // Windows: handle Ctrl+Break and system shutdown signals
