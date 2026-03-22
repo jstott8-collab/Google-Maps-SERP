@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -19,6 +20,9 @@ jobs:
             platform: win
 
     runs-on: ${{ matrix.os }}
+
+    env:
+      NODE_OPTIONS: '--max-old-space-size=4096'
 
     steps:
       - name: Checkout code
