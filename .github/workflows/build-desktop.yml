@@ -88,13 +88,18 @@ jobs:
             const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo,
+              per_page: 20,
             });
+            // listReleases returns both published and draft releases for authenticated requests
             const release = releases.find(r => r.tag_name === tag);
             if (release) {
               await github.rest.repos.updateRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: release.id,
+                draft: false,
                 body: `## Download\n\n| Platform | Download |\n|----------|----------|\n| macOS | [Download DMG](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}/GBP-Rank-Tracker-${tag.replace('v','')}.dmg) |\n| Windows | [Download Installer](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}/GBP-Rank-Tracker-Setup-${tag.replace('v','')}.exe) |\n\n---\n\n${release.body || ''}`,
               });
+            } else {
+              core.warning(`No release found for tag ${tag} — it may still be uploading. Check GitHub Releases.`);
             }
