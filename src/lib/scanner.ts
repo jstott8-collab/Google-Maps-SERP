@@ -126,6 +126,22 @@ export async function runScan(scanId: string) {
 
         await logger.debug(`[Launcher] Generated ${points.length} coordinates for scan.`, 'SCANNER');
 
+        // ═══ SCAN RESUMABILITY ═══
+        // Check for already-completed points from a previous partial run (crash recovery)
+        const existingResults = await prisma.result.findMany({
+            where: { scanId, runId },
+            select: { lat: true, lng: true }
+        });
+        const completedPoints = new Set(
+            existingResults.map(r => `${r.lat.toFixed(6)},${r.lng.toFixed(6)}`)
+        );
+        const remainingPoints = points.filter(
+            (p: any) => !completedPoints.has(`${p.lat.toFixed(6)},${p.lng.toFixed(6)}`)
+        );
+        if (existingResults.length > 0) {
+            await logger.info(`[Resume] Found ${existingResults.length} completed points. Resuming from point ${existingResults.length + 1}/${points.length}.`, 'SCANNER', { scanId });
+        }
+
         // Initial fetch of proxy settings
         const proxySetting = await prisma.globalSetting.findUnique({ where: { key: 'useSystemProxy' } });
         const useSystemProxy = proxySetting ? proxySetting.value === 'true' : true;
@@ -133,16 +149,15 @@ export async function runScan(scanId: string) {
         async function launchBrowser(failedProxyId?: string): Promise<Browser> {
             await logger.debug('Launching browser...', 'SCANNER', { failedProxyId });
 
-            // If a proxy failed, mark it DEAD in the database immediately
+            // If a proxy failed, disable it and log the event
             if (failedProxyId) {
                 try {
                     await prisma.proxy.update({
                         where: { id: failedProxyId },
-                        data: { status: 'DEAD', lastTestedAt: new Date() }
+                        data: { status: 'DEAD', enabled: false, lastTestedAt: new Date() }
                     });
-                } catch (err) {
-                    console.error('[Scanner] Failed to update proxy status:', err);
-                }
+                    await logger.warn(`[ProxyCleanup] Proxy ${failedProxyId} marked DEAD and auto-disabled after failure.`, 'SCANNER');
+                } catch { /* proxy may already be deleted */ }
             }
 
             const launchOptions: any = { headless: true };
@@ -257,7 +272,13 @@ export async function runScan(scanId: string) {
 
         browser = await launchBrowser();
 
-        for (const point of points) {
+        // ═══ CIRCUIT BREAKER ═══
+        // Tracks consecutive failures. If too many in a row, pause to let Google cool down.
+        let consecutiveFailures = 0;
+        const CIRCUIT_BREAKER_THRESHOLD = 5; // 5 consecutive failures = trip
+        const CIRCUIT_BREAKER_PAUSE_MS = 60_000; // 60 second cooldown
+
+        for (const point of remainingPoints) {
             // Check if scan has been stopped or reset
             const currentScan = await prisma.scan.findUnique({
                 where: { id: scanId },
@@ -302,6 +323,7 @@ export async function runScan(scanId: string) {
 
                     results = await scrapeGMB(pointPage, scan.keyword, point.lat, point.lng);
                     success = true;
+                    consecutiveFailures = 0; // Reset circuit breaker on success
 
                     // Validate result count
                     if (results.length < 20) {
@@ -336,7 +358,20 @@ export async function runScan(scanId: string) {
             }
 
             if (!success) {
-                await logger.warn(`Point capture failed: ${point.lat}, ${point.lng} after max attempts.`, 'SCANNER');
+                consecutiveFailures++;
+                await logger.warn(`Point capture failed: ${point.lat}, ${point.lng} after max attempts. (consecutive: ${consecutiveFailures})`, 'SCANNER');
+
+                // ═══ CIRCUIT BREAKER TRIP ═══
+                if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+                    await logger.warn(`[CircuitBreaker] ${consecutiveFailures} consecutive failures — Google may be blocking. Pausing ${CIRCUIT_BREAKER_PAUSE_MS / 1000}s...`, 'SCANNER', { scanId });
+                    // Close and relaunch browser with fresh proxy
+                    if (browser) await browser.close().catch(() => { });
+                    await new Promise(resolve => setTimeout(resolve, CIRCUIT_BREAKER_PAUSE_MS));
+                    browser = await launchBrowser(currentProxyId || undefined);
+                    consecutiveFailures = 0; // Reset after cooldown
+                    await logger.info(`[CircuitBreaker] Cooldown complete. Resuming scan.`, 'SCANNER', { scanId });
+                }
+
                 await prisma.result.create({
                     data: {
                         scanId: scan.id,

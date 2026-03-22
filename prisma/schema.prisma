@@ -102,6 +102,40 @@ model Webhook {
   @@index([enabled])
 }
 
+model GridPreset {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  centerLat   Float
+  centerLng   Float
+  radius      Float
+  gridSize    Int      @default(3)
+  shape       String   @default("SQUARE")
+  customPoints String? // JSON string of manual coordinates
+  locationName String? // Human-readable location label
+  createdAt   DateTime @default(now())
+
+  @@index([name])
+}
+
+model SavedBusiness {
+  id           String   @id @default(cuid())
+  name         String
+  placeId      String?  // Google Place ID or CID
+  address      String?
+  phone        String?
+  website      String?
+  category     String?
+  googleUrl    String?  // Google Maps URL
+  lat          Float?
+  lng          Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  @@index([name])
+}
+
 model ReviewAnalysis {
   id            String   @id @default(cuid())
   businessName  String

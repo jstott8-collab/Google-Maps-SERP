@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-03-22
+
+### Failure-Proof Scanner & UX Features
+
+Major reliability improvements to the scan engine plus new user experience features for faster workflows.
+
+#### Scanner Reliability
+- **Scan Resumability** — If a scan crashes or is restarted at point 45/100, it resumes from point 46 instead of restarting. Queries existing results by runId and skips already-completed grid points automatically.
+- **Circuit Breaker** — Tracks consecutive scrape failures. After 5 in a row (Google is likely blocking), pauses for 60 seconds, relaunches browser with a fresh proxy, then resumes. Prevents wasting retries against an active block.
+- **Dead Proxy Auto-Disable** — Failed proxies are now both marked DEAD and auto-disabled (`enabled: false`), removing them from the rotation pool permanently until manually re-enabled.
+
+#### New Features
+- **Grid Preset Templates** (`/api/presets`) — Save grid configurations with names (e.g., "Downtown Chicago 5x5"). Reuse presets when creating new scans instead of reconfiguring every time. Full CRUD API.
+- **Saved Business Profiles** (`/api/businesses`) — Store businesses with name, Place ID, address, phone, website, category, Google URL, coordinates, and notes. Select from saved businesses when creating scans. Search support.
+- **Scan Time Estimator** (`/api/scans/estimate`) — Before starting a scan, get an accurate time estimate: "This 9×9 grid will take about 12 minutes (81 points)." Accounts for grid shape, radius, and per-point scrape time.
+- **Scan Cloning** (`/api/scans/[id]/clone`) — Duplicate any existing scan's configuration as a new PENDING scan. Supports overrides (change keyword, frequency, etc.) while keeping grid settings.
+- **Review Response Templates** (`/api/reviews/[id]/templates`) — Generates 3 contextual reply templates per review based on rating (1-5), sentiment, and detected topics (service, food, price, cleanliness, wait time). Purely algorithmic, no external API.
+
+#### Database
+- New `GridPreset` model for storing reusable grid configurations
+- New `SavedBusiness` model for storing business profiles
+
+---
+
 ## [1.8.1] - 2026-03-22
 
 ### Review Module Reliability Overhaul (1000+ Reviews)
