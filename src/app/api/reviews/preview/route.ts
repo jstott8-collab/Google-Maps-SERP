@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { chromium } from 'playwright';
+import { chromium, getElectronLaunchDefaults } from '@/lib/browser';
 
 /**
  * Preview a business from a Google Maps URL — fetches name, rating, total reviews
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Business URL is required' }, { status: 400 });
         }
 
-        browser = await chromium.launch({ headless: true });
+        browser = await chromium.launch({ headless: true, ...getElectronLaunchDefaults() });
 
         const context = await browser.newContext({
             viewport: { width: 1400, height: 900 },

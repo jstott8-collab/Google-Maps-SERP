@@ -1,12 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Sparkles, ArrowRight, X, Info, RefreshCw, CheckCircle, AlertTriangle, Terminal } from 'lucide-react';
+import { Sparkles, ArrowRight, X, Info, RefreshCw, CheckCircle, AlertTriangle, Terminal, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui';
 
 const GITHUB_PKG_URL = 'https://raw.githubusercontent.com/danishfareed/Google-Maps-SERP/main/package.json';
 const GITHUB_RELEASES_URL = 'https://raw.githubusercontent.com/danishfareed/Google-Maps-SERP/main/public/releases.json';
+
+// Type for Electron API exposed via preload
+declare global {
+    interface Window {
+        electronAPI?: {
+            isElectron: boolean;
+            checkForUpdates: () => Promise<{ updateAvailable?: boolean; error?: string }>;
+            downloadUpdate: () => Promise<{ success?: boolean; error?: string }>;
+            installUpdate: () => void;
+            getVersion: () => Promise<string>;
+            onUpdateAvailable: (cb: (event: any, info: any) => void) => () => void;
+            onUpdateProgress: (cb: (event: any, progress: any) => void) => () => void;
+            onUpdateDownloaded: (cb: (event: any) => void) => () => void;
+        };
+    }
+}
 
 export function UpdateNotifier() {
     const [currentVersion, setCurrentVersion] = useState('');
@@ -22,57 +38,109 @@ export function UpdateNotifier() {
     const [updateError, setUpdateError] = useState('');
     const [updateLogs, setUpdateLogs] = useState<string[]>([]);
     const [showLogs, setShowLogs] = useState(false);
+    const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+
+    const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
 
     useEffect(() => {
-        const checkUpdate = async () => {
-            try {
-                // Get current local version dynamically from our API
-                const localRes = await fetch('/api/system/update');
-                const localPkg = await localRes.json();
-                const local = localPkg.version || '0.0.0';
-                setCurrentVersion(local);
+        if (isElectron) {
+            // Electron mode: use IPC for updates
+            const api = window.electronAPI!;
 
-                // Check GitHub for latest version
-                const res = await fetch(GITHUB_PKG_URL);
-                if (!res.ok) return;
-                const remotePkg = await res.json();
-                const remote = remotePkg.version;
+            api.getVersion().then(v => setCurrentVersion(v));
 
-                if (remote && remote !== local) {
-                    setLatestVersion(remote);
-                    setUpdateAvailable(true);
+            const cleanupAvailable = api.onUpdateAvailable((_event, info) => {
+                setLatestVersion(info.version);
+                setUpdateAvailable(true);
+            });
 
-                    // Fetch remote release notes
-                    try {
-                        const relRes = await fetch(GITHUB_RELEASES_URL);
-                        if (relRes.ok) setReleases(await relRes.json());
-                    } catch { /* ignore */ }
+            const cleanupProgress = api.onUpdateProgress((_event, progress) => {
+                setDownloadProgress(Math.round(progress.percent));
+            });
+
+            const cleanupDownloaded = api.onUpdateDownloaded(() => {
+                setUpdating(false);
+                setUpdateDone(true);
+                setDownloadProgress(null);
+            });
+
+            return () => {
+                cleanupAvailable();
+                cleanupProgress();
+                cleanupDownloaded();
+            };
+        } else {
+            // Web mode: use HTTP/GitHub check (original behavior)
+            const checkUpdate = async () => {
+                try {
+                    const localRes = await fetch('/api/system/update');
+                    const localPkg = await localRes.json();
+                    const local = localPkg.version || '0.0.0';
+                    setCurrentVersion(local);
+
+                    const res = await fetch(GITHUB_PKG_URL);
+                    if (!res.ok) return;
+                    const remotePkg = await res.json();
+                    const remote = remotePkg.version;
+
+                    if (remote && remote !== local) {
+                        setLatestVersion(remote);
+                        setUpdateAvailable(true);
+
+                        try {
+                            const relRes = await fetch(GITHUB_RELEASES_URL);
+                            if (relRes.ok) setReleases(await relRes.json());
+                        } catch { /* ignore */ }
+                    }
+                } catch (err) {
+                    console.error('Failed to check for updates:', err);
                 }
-            } catch (err) {
-                console.error('Failed to check for updates:', err);
-            }
-        };
+            };
 
-        checkUpdate();
+            checkUpdate();
+        }
     }, []);
 
     const handleUpdate = async () => {
         setUpdating(true);
         setUpdateError('');
         setUpdateLogs([]);
-        try {
-            const res = await fetch('/api/system/update', { method: 'POST' });
-            const data = await res.json();
-            setUpdateLogs(data.logs || []);
-            if (data.success) {
-                setUpdateDone(true);
-            } else {
-                setUpdateError(data.error || 'Update failed');
+
+        if (isElectron) {
+            // Electron: download update via IPC
+            try {
+                const result = await window.electronAPI!.downloadUpdate();
+                if (result.error) {
+                    setUpdateError(result.error);
+                    setUpdating(false);
+                }
+                // Progress and completion handled by IPC listeners above
+            } catch (err: any) {
+                setUpdateError(err.message);
+                setUpdating(false);
             }
-        } catch (err: any) {
-            setUpdateError(err.message);
-        } finally {
-            setUpdating(false);
+        } else {
+            // Web: git pull via API (original behavior)
+            try {
+                const res = await fetch('/api/system/update', { method: 'POST' });
+                const data = await res.json();
+                setUpdateLogs(data.logs || []);
+                if (data.success) {
+                    setUpdateDone(true);
+                } else {
+                    setUpdateError(data.error || 'Update failed');
+                }
+            } catch (err: any) {
+                setUpdateError(err.message);
+            } finally {
+                setUpdating(false);
+            }
+        }
+    };
+
+    const handleRestart = () => {
+        if (isElectron) {
+            window.electronAPI!.installUpdate();
         }
     };
 
@@ -106,10 +174,26 @@ export function UpdateNotifier() {
                             </h4>
                             <p className="text-xs text-gray-500 font-medium mt-0.5">
                                 {updateDone
-                                    ? `Updated to v${latestVersion}. Restart the app to apply.`
+                                    ? `Updated to v${latestVersion}. ${isElectron ? 'Click restart to apply.' : 'Restart the app to apply.'}`
                                     : `v${latestVersion} is available. You're on v${currentVersion}.`
                                 }
                             </p>
+
+                            {/* Download progress bar (Electron only) */}
+                            {isElectron && downloadProgress !== null && (
+                                <div className="mt-2">
+                                    <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                                        <span>Downloading...</span>
+                                        <span>{downloadProgress}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                                            style={{ width: `${downloadProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             {updateError && (
                                 <div className="mt-2 flex items-start gap-1.5 bg-red-50 rounded-lg p-2">
@@ -129,10 +213,11 @@ export function UpdateNotifier() {
                                         {updating ? (
                                             <>
                                                 <RefreshCw size={12} className="mr-1 animate-spin" />
-                                                Updating...
+                                                {isElectron ? 'Downloading...' : 'Updating...'}
                                             </>
                                         ) : (
                                             <>
+                                                {isElectron ? <Download size={12} className="mr-1" /> : null}
                                                 Get Update <ArrowRight size={12} className="ml-1" />
                                             </>
                                         )}
@@ -146,7 +231,22 @@ export function UpdateNotifier() {
                                 </div>
                             )}
 
-                            {(updating || updateLogs.length > 0) && (
+                            {/* Electron: Restart button after download */}
+                            {updateDone && isElectron && (
+                                <div className="mt-4">
+                                    <Button
+                                        size="sm"
+                                        className="h-8 px-4 text-[10px] font-black uppercase tracking-widest bg-emerald-600"
+                                        onClick={handleRestart}
+                                    >
+                                        <RefreshCw size={12} className="mr-1" />
+                                        Restart Now
+                                    </Button>
+                                </div>
+                            )}
+
+                            {/* Web: Update logs */}
+                            {!isElectron && (updating || updateLogs.length > 0) && (
                                 <div className="mt-3">
                                     <button
                                         onClick={() => setShowLogs(!showLogs)}

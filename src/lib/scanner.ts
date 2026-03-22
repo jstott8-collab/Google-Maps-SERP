@@ -1,7 +1,8 @@
 import { prisma } from './prisma';
 import { generateGrid } from './grid';
 import { scrapeGMB } from './scraper';
-import { chromium, Browser, BrowserContext, Page } from 'playwright';
+import { Browser, BrowserContext, Page } from 'playwright-core';
+import { chromium, getElectronLaunchDefaults } from './browser';
 import { logger } from './logger';
 import { dispatchWebhook } from './webhookDispatcher';
 import type { Scan } from '@prisma/client';
@@ -160,7 +161,7 @@ export async function runScan(scanId: string) {
                 } catch { /* proxy may already be deleted */ }
             }
 
-            const launchOptions: any = { headless: true };
+            const launchOptions: any = { headless: true, ...getElectronLaunchDefaults() };
 
             if (!useSystemProxy) {
                 // Fetch healthy proxies (ACTIVE or UNTESTED)

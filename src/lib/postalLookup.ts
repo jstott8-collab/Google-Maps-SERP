@@ -20,7 +20,9 @@ interface PostalEntry {
 // Cache loaded country data to avoid re-reading files
 const cache = new Map<string, PostalEntry[]>();
 
-const DATA_DIR = path.join(process.cwd(), 'data', 'postal');
+const DATA_DIR = process.env.GEORANKER_DATA_DIR
+    ? path.join(process.env.GEORANKER_DATA_DIR, 'postal')
+    : path.join(process.cwd(), 'data', 'postal');
 
 /**
  * Check if postal data is available for a country.

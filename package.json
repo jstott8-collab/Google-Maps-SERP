@@ -1,18 +1,26 @@
 {
   "name": "gbpranktracker",
   "version": "1.9.0",
-  "description": "",
-  "main": "index.js",
+  "description": "GBP Rank Tracker — Local SEO Intelligence Platform",
+  "main": "electron/dist/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "electron:dev": "node scripts/electron-dev.js",
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:prepare": "npm run build && node scripts/copy-static.js && npm run electron:compile",
+    "electron:build": "npm run electron:prepare && electron-builder",
+    "electron:build:mac": "npm run electron:prepare && electron-builder --mac",
+    "electron:build:win": "npm run electron:prepare && electron-builder --win",
+    "electron:build:linux": "npm run electron:prepare && electron-builder --linux",
+    "electron:publish": "npm run electron:prepare && electron-builder --publish always"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Danish Fareed",
+  "license": "MIT",
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -26,9 +34,11 @@
     "@types/node": "^25.1.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
+    "better-sqlite3": "^12.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "country-state-city": "^3.2.1",
+    "electron-updater": "^6.3.9",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.29.2",
     "jspdf": "^4.0.0",
@@ -37,7 +47,6 @@
     "lucide-react": "^0.563.0",
     "natural": "^8.1.0",
     "next": "^16.1.6",
-    "playwright": "^1.58.1",
     "playwright-core": "^1.58.1",
     "prisma": "^5.22.0",
     "react": "^19.2.4",
@@ -52,6 +61,9 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.24",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.58.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18"
   }

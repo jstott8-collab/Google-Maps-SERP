@@ -22,6 +22,11 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    // In Electron, updates are handled by electron-updater, not git pull
+    if (process.env.GEORANKER_IS_ELECTRON === '1') {
+        return NextResponse.json({ error: 'Use the desktop app updater instead' }, { status: 400 });
+    }
+
     // Security: Only allow requests from localhost
     const forwarded = req.headers.get('x-forwarded-for');
     const host = req.headers.get('host') || '';
