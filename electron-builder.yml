@@ -5,6 +5,10 @@ directories:
   output: dist-electron
   buildResources: build-resources
 
+# Skip electron-builder's dependency resolution — we use a manual whitelist
+# and rebuild better-sqlite3 ourselves via @electron/rebuild
+npmRebuild: false
+
 # Only Electron main-process files + exact dependencies
 files:
   - "package.json"
