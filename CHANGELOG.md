@@ -2,6 +2,64 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.3] - 2026-03-22
+
+### Security Hardening & Stability
+
+Comprehensive security improvements for the Electron desktop app plus resilience fixes that prevent the app from entering unrecoverable states across startup, shutdown, crashes, and database operations.
+
+#### Security
+- **Content Security Policy (CSP)** — Full CSP applied to all renderer responses via `session.webRequest.onHeadersReceived`. Restricts scripts, styles, fonts, images, and network connections to only trusted origins (localhost server, OpenStreetMap tiles, Nominatim, Overpass API, GitHub API). `frame-src 'none'`, `object-src 'none'` block iframe injection and plugin exploitation.
+- **Additional Security Headers** — All responses now include `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer` to prevent MIME sniffing, clickjacking, and referrer leakage.
+- **Renderer Sandbox** — BrowserWindow now runs with `sandbox: true`, isolating the renderer in an OS-level sandboxed process. Prevents compromised renderer code from accessing Node.js APIs or the filesystem directly.
+- **DevTools Locked in Production** — The View → Developer Tools menu item is only shown in development builds. DevTools are completely inaccessible in packaged `.dmg`/`.exe` distributions.
+- **Keyword Input Length Cap** — Scan keywords are now capped at 200 characters server-side (`POST /api/scans`). Prevents excessively long inputs from causing unbounded memory usage in the scraper and database.
+
+#### Stability
+- **Window State File Corruption** — If the saved window position/size JSON becomes corrupted (e.g. disk full, forced quit), the app previously failed to launch. Now detects parse errors, deletes the corrupted file, and falls back to default window dimensions.
+- **Windows Process Cleanup (spawnSync)** — On Windows, the Next.js server child process is now killed using `spawnSync('taskkill', ...)` instead of async `spawn`. The previous async approach could leave orphaned node processes running after the app quit.
+- **Server Crash Loop Prevention** — If the embedded Next.js server crashes more than 3 times (configurable `MAX_SERVER_RESTARTS`), the app stops attempting restarts and shows an error dialog instead of looping indefinitely.
+- **Database Migration Error Handling** — The Prisma migration step now correctly swallows only "duplicate column" and "already exists" SQLite errors (safe to ignore on re-runs). All other migration errors are re-thrown and surfaced to the user.
+- **better-sqlite3 in Packaged App** — If `better-sqlite3` fails to load in a packaged Electron build, the app now throws a descriptive error immediately instead of silently falling back to `npx prisma` (which doesn't exist in the packaged app).
+- **Playwright Download Timeout** — Chromium download timeout increased from 5 minutes to 10 minutes. Slow connections were timing out before the ~150MB download could complete.
+
+#### CI/CD
+- **Node.js 22 in GitHub Actions** — Upgraded from Node.js 20 (deprecated) to Node.js 22 in all CI workflow jobs.
+- **Standalone Output Verification** — Build workflow now verifies `.next/standalone/server.js` exists after `next build` before proceeding to copy and package. Catches misconfigured builds before they produce a broken installer.
+- **FORCE_JAVASCRIPT_ACTIONS_TO_NODE24** — Added environment variable to `update-release` job to suppress GitHub Actions Node.js deprecation warnings.
+
+---
+
+## [1.9.2] - 2026-03-22
+
+### macOS Ad-Hoc Code Signing
+
+Eliminates the "app is damaged and can't be opened" Gatekeeper error on macOS 13+ without requiring an Apple Developer account.
+
+#### Added
+- **Ad-Hoc Signing via `afterSign` Hook** — `scripts/after-sign.js` runs `codesign --force --deep --sign -` on the assembled `.app` bundle before it is packaged into the `.dmg`. This satisfies Gatekeeper's minimum code signing requirement using a local ad-hoc identity (`-`).
+- **`identity: null` in electron-builder** — Prevents electron-builder from searching for or requiring a Developer ID certificate. Combined with ad-hoc signing, the app opens without Gatekeeper quarantine errors.
+- **`CSC_IDENTITY_AUTO_DISCOVERY: false` in CI** — macOS GitHub Actions runner no longer attempts certificate discovery from the system keychain, preventing build failures on runners without Apple credentials.
+
+#### Notes
+- Ad-hoc signing is not notarized — first launch still requires right-click → Open on macOS. Full Apple notarization requires a paid Developer account and can be added later.
+- Windows SmartScreen is unaffected by this change.
+
+---
+
+## [1.9.1] - 2026-03-22
+
+### CI Build Fixes & Auto-Publishing
+
+Resolved two CI failures that prevented macOS and Windows installers from being produced, and fixed GitHub Releases publishing so downloads are publicly accessible.
+
+#### Fixed
+- **macOS EEXIST Hardlink Conflict** — `electron-builder` was attempting to copy `.next/static` into the app package twice: once via `scripts/copy-static.js` (which runs before packaging) and once via a duplicate `extraResources` entry in `electron-builder.yml`. The second copy failed with `EEXIST` when trying to create hardlinks over existing files. Removed the duplicate `extraResources` entry.
+- **Windows Invalid `icon.ico`** — `build-resources/icon.ico` was a PNG file renamed to `.ico` (667KB with `\x89PNG` header). `rcedit` rejected it with "Reserved header is not 0 or image type is not icon". Regenerated as a proper multi-resolution ICO binary (70KB) containing embedded PNG images at 16, 32, 48, 64, 128, and 256px using Python Pillow.
+- **GitHub Releases Published as Drafts** — `electron-builder --publish always` creates draft releases by default. The `update-release` workflow job was updating the release body but not setting `draft: false`, so releases remained invisible to unauthenticated users. Added `draft: false` to the `updateRelease` API call. Releases now auto-publish after both platform builds complete.
+
+---
+
 ## [1.9.0] - 2026-03-22
 
 ### Failure-Proof Scanner & UX Features
