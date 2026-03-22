@@ -24,6 +24,7 @@ jobs:
 
     env:
       NODE_OPTIONS: '--max-old-space-size=4096'
+      DATABASE_URL: 'file:./prisma/dev.db'
 
     steps:
       - name: Checkout code
@@ -41,8 +42,16 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Create empty database for build
-        run: node -e "const fs=require('fs'); fs.mkdirSync('prisma',{recursive:true}); fs.writeFileSync('prisma/dev.db','')"
+      - name: Create database for build
+        run: npx prisma db push --skip-generate --accept-data-loss
+
+      - name: Debug environment
+        run: |
+          node --version
+          npx next --version
+          echo "DATABASE_URL=$DATABASE_URL"
+          ls -la prisma/ || true
+          cat next.config.ts
 
       - name: Build Next.js
         run: npx next build
