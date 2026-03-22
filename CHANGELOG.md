@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4] - 2026-03-22
+
+### Crash Reporting
+
+Automatic crash detection with opt-in GitHub issue reporting. No external services, no data sent without user consent.
+
+#### Added
+- **Crash Report Writer** — Unhandled exceptions, unhandled promise rejections, and renderer process crashes (`render-process-gone`) are written as sanitized JSON files to `userData/crash-reports/`.
+- **Post-Crash Dialog** — On the next launch after a crash, a dialog appears: "The app crashed during the previous session. Would you like to report this to the developer?" User paths and system usernames are stripped before display.
+- **Pre-Filled GitHub Issue** — Clicking "Report on GitHub" opens `github.com/.../issues/new` in the browser with error message, stack trace, recent log tail, and environment info (app version, OS, Electron/Node versions) pre-populated. The user reviews the content and submits via their own GitHub account.
+- **URL Length Guard** — If the pre-filled issue URL exceeds 8000 characters, the log tail is truncated to keep the URL functional in all browsers.
+- **Path Sanitization** — Home directory, userData path, Windows `C:\Users\<name>`, and Unix `/home/<name>` patterns are replaced with `<home>` / `<userData>` before anything is shown or sent.
+
+---
+
 ## [1.9.3] - 2026-03-22
 
 ### Security Hardening & Stability

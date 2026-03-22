@@ -6,7 +6,7 @@ Track your Google Business Profile rankings across a geographic grid — see exa
 [![Download for macOS](https://img.shields.io/badge/Download-macOS%20DMG-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/danishfareed/Google-Maps-SERP/releases/latest)
 [![Download for Windows](https://img.shields.io/badge/Download-Windows%20Installer-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/danishfareed/Google-Maps-SERP/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.9.1-green.svg?style=for-the-badge)](https://github.com/danishfareed/Google-Maps-SERP/releases/latest)
+[![Version](https://img.shields.io/github/v/release/danishfareed/Google-Maps-SERP?style=for-the-badge&color=green&label=Version)](https://github.com/danishfareed/Google-Maps-SERP/releases/latest)
 
 ![GBP Rank Tracker — Google Maps Rank Grid Dashboard](https://github.com/danishfareed/Google-Maps-SERP/blob/main/public/preview.png?raw=true)
 
@@ -154,6 +154,33 @@ GBP Rank Tracker runs **100% locally on your machine**:
 ---
 
 ## Changelog
+
+### v1.9.4 — 2026-03-22
+**Crash Reporting**
+- Automatic crash detection: unhandled exceptions, promise rejections, and renderer process crashes are written to a local report in `userData/crash-reports/`
+- On the next launch after a crash, a dialog appears offering to report the issue — clicking "Report on GitHub" opens a pre-filled issue in the browser with error, stack trace, and recent logs attached
+- User paths and system usernames are scrubbed from all reports before they are shown
+- Nothing is sent automatically — user reviews and submits via their own GitHub account
+
+---
+
+### v1.9.3 — 2026-03-22
+**Security & Stability**
+- Content Security Policy applied to all renderer responses — restricts connections to only trusted origins
+- Renderer process runs in OS-level sandbox (`sandbox: true`)
+- DevTools inaccessible in production builds
+- Window state corruption no longer prevents app from launching
+- Windows: Next.js server killed synchronously on quit (prevents orphaned processes)
+- Server crash loop capped at 3 restarts before showing an error dialog
+- Playwright Chromium download timeout increased to 10 minutes
+
+---
+
+### v1.9.2 — 2026-03-22
+**macOS Signing**
+- Ad-hoc code signing via `afterSign` hook eliminates the "app is damaged" Gatekeeper error on macOS 13+ without requiring an Apple Developer account
+
+---
 
 ### v1.9.1 — 2026-03-22
 **Bug Fixes**
