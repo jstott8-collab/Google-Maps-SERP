@@ -119,33 +119,6 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
         fetchScan(runId);
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <RefreshCw className="animate-spin text-gray-400" />
-            </div>
-        );
-    }
-
-    if (!scan) return <div>Scan not found</div>;
-
-    const totalPoints = useMemo(() => {
-        if (scan.customPoints) {
-            try {
-                const points = JSON.parse(scan.customPoints);
-                if (Array.isArray(points)) return points.length;
-            } catch { /* invalid JSON */ }
-        }
-        return scan.gridSize * scan.gridSize;
-    }, [scan.customPoints, scan.gridSize]);
-
-    const completedPoints = scan.results.length;
-
-    const avgRank = useMemo(() =>
-        scan.results.reduce((acc, r) => acc + (r.rank || 20), 0) / (completedPoints || 1),
-        [scan.results, completedPoints]
-    );
-
     // CTR model based on industry benchmarks for local pack rankings
     const getCTR = (rank: number | null): number => {
         if (!rank) return 0;
@@ -158,13 +131,6 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
         return ctrByRank[Math.min(rank, 20)] || 0;
     };
 
-    const visibilityScore = useMemo(() =>
-        completedPoints > 0
-            ? (scan.results.reduce((acc, r) => acc + getCTR(r.rank), 0) / completedPoints) * 100
-            : 0,
-        [scan.results, completedPoints]
-    );
-
     const getTopResults = (jsonStr: string): RankedBusiness[] => {
         try {
             return JSON.parse(jsonStr);
@@ -173,23 +139,62 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
         }
     };
 
+    // All hooks must be called before any early returns (Rules of Hooks)
+    const totalPoints = useMemo(() => {
+        if (!scan) return 0;
+        if (scan.customPoints) {
+            try {
+                const points = JSON.parse(scan.customPoints);
+                if (Array.isArray(points)) return points.length;
+            } catch { /* invalid JSON */ }
+        }
+        return scan.gridSize * scan.gridSize;
+    }, [scan?.customPoints, scan?.gridSize]);
+
+    const completedPoints = scan?.results.length ?? 0;
+
+    const avgRank = useMemo(() =>
+        !scan ? 0 : scan.results.reduce((acc, r) => acc + (r.rank || 20), 0) / (completedPoints || 1),
+        [scan?.results, completedPoints]
+    );
+
+    const visibilityScore = useMemo(() =>
+        !scan || completedPoints === 0
+            ? 0
+            : (scan.results.reduce((acc, r) => acc + getCTR(r.rank), 0) / completedPoints) * 100,
+        [scan?.results, completedPoints]
+    );
+
+    const filteredResults = useMemo(() => {
+        if (!scan) return [];
+        return scan.results.filter(r => {
+            if (filter === 'top3') return r.rank && r.rank <= 3;
+            if (filter === 'top10') return r.rank && r.rank <= 10;
+            if (filter === 'unranked') return !r.rank;
+            return true;
+        }).filter(r => {
+            if (!searchQuery) return true;
+            const results = getTopResults(r.topResults);
+            return results.some(b => b.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        });
+    }, [scan?.results, filter, searchQuery]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <RefreshCw className="animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (!scan) return <div>Scan not found</div>;
+
     const toggleRow = (id: string) => {
         const next = new Set(expandedRows);
         if (next.has(id)) next.delete(id);
         else next.add(id);
         setExpandedRows(next);
     };
-
-    const filteredResults = useMemo(() => scan.results.filter(r => {
-        if (filter === 'top3') return r.rank && r.rank <= 3;
-        if (filter === 'top10') return r.rank && r.rank <= 10;
-        if (filter === 'unranked') return !r.rank;
-        return true;
-    }).filter(r => {
-        if (!searchQuery) return true;
-        const results = getTopResults(r.topResults);
-        return results.some(b => b.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }), [scan.results, filter, searchQuery]);
 
     const handleDelete = async () => {
         if (!confirm('Are you sure you want to delete this report? This action cannot be undone.')) return;
