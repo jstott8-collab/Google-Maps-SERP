@@ -583,7 +583,7 @@ export default function SettingsPage() {
 
             <footer className="mt-20 py-8 border-t border-gray-100 text-center">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[6px] transition-all hover:text-blue-500 hover:tracking-[8px] cursor-default">
-                    GBP Rank Tracker v1.9.0 • Precision Ranking Intelligence
+                    GBP Rank Tracker v{process.env.NEXT_PUBLIC_APP_VERSION} • Precision Ranking Intelligence
                 </p>
             </footer>
         </div>
