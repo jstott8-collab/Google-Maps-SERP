@@ -309,7 +309,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
             setSharing(true);
             try {
                 await navigator.share({
-                    title: `GeoRanker Report: ${scan.keyword}`,
+                    title: `GBP Rank Tracker Report: ${scan.keyword}`,
                     text: `Check out the local ranking report for "${scan.keyword}"`,
                     url: url,
                 });

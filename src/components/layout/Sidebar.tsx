@@ -36,7 +36,7 @@ export function Sidebar() {
     const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
     useEffect(() => {
-        const savedName = localStorage.getItem('gmbserp_user_name');
+        const savedName = localStorage.getItem('gbpranktracker_user_name');
         if (savedName) setUserName(savedName);
 
         const savedCollapsed = localStorage.getItem('sidebar_collapsed');
@@ -65,7 +65,7 @@ export function Sidebar() {
                     </div>
                     {!collapsed && (
                         <h1 className="text-lg font-bold text-gray-900 tracking-tight whitespace-nowrap">
-                            GeoRanker
+                            GBP Rank Tracker
                         </h1>
                     )}
                 </Link>

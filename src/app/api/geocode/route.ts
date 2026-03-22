@@ -14,7 +14,7 @@ export async function GET(request: Request) {
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
             {
                 headers: {
-                    'User-Agent': 'GeoRanker/1.0',
+                    'User-Agent': 'GBPRankTracker/1.0',
                 },
             }
         );

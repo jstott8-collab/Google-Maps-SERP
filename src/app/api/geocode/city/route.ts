@@ -38,7 +38,7 @@ export async function GET(request: Request) {
         const nomRes = await fetch(
             `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&addressdetails=1`,
             {
-                headers: { 'User-Agent': 'GeoRanker/2.0 (contact@georanker.app)' },
+                headers: { 'User-Agent': 'GBPRankTracker/2.0' },
                 signal: AbortSignal.timeout(15000),
             }
         );

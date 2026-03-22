@@ -12,7 +12,7 @@ import ExcelJS from 'exceljs';
 // ============================================================
 export async function exportReviewsToXLSX(data: any) {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'GeoRanker Review Intelligence';
+    workbook.creator = 'GBP Rank Tracker Review Intelligence';
     workbook.created = new Date();
 
     const analysis = JSON.parse(data.analysisData || '{}');
@@ -290,7 +290,7 @@ export function exportReviewsToJSON(data: any) {
             averageRating: data.averageRating,
             analysisDate: data.createdAt,
             exportDate: new Date().toISOString(),
-            generatedBy: 'GeoRanker Review Intelligence',
+            generatedBy: 'GBP Rank Tracker Review Intelligence',
         },
         metrics: {
             overview: analysis.overview || null,
@@ -599,7 +599,7 @@ export function exportReviewsToPDF(data: any) {
 
     <!-- FOOTER -->
     <div style="text-align:center;padding:20px;color:#9ca3af;font-size:10px;border-top:1px solid #e5e7eb;margin-top:20px">
-        <div style="font-weight:700;color:#7c3aed;margin-bottom:4px">GeoRanker Review Intelligence</div>
+        <div style="font-weight:700;color:#7c3aed;margin-bottom:4px">GBP Rank Tracker Review Intelligence</div>
         Generated on ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} · 150+ Metric Deep Analysis · Powered by vdesignu.com
     </div>
 

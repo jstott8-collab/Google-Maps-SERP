@@ -1,6 +1,6 @@
 {
-    "name": "GeoRanker GBP",
-    "short_name": "GeoRanker",
+    "name": "GBP Rank Tracker",
+    "short_name": "GBP Rank Tracker",
     "description": "Professional Google Business Profile Local SEO Tracking",
     "start_url": "/",
     "display": "standalone",

@@ -21,7 +21,7 @@ export default function SettingsPage() {
     const [isValidating, setIsValidating] = useState(false);
 
     useEffect(() => {
-        const savedName = localStorage.getItem('gmbserp_user_name');
+        const savedName = localStorage.getItem('gbpranktracker_user_name');
         if (savedName) setName(savedName);
         fetchProxies();
         fetchSettings();
@@ -184,7 +184,7 @@ export default function SettingsPage() {
 
     const handleNameChange = (newName: string) => {
         setName(newName);
-        localStorage.setItem('gmbserp_user_name', newName);
+        localStorage.setItem('gbpranktracker_user_name', newName);
     };
 
     const handleEnableNotifications = async () => {
@@ -198,7 +198,7 @@ export default function SettingsPage() {
             const permission = await Notification.requestPermission();
             if (permission === "granted") {
                 setNotificationsEnabled(true);
-                new Notification("GeoRanker", { body: "Browser notifications enabled successfully!" });
+                new Notification("GBP Rank Tracker", { body: "Browser notifications enabled successfully!" });
             }
         } catch (err) {
             console.error("Notification error:", err);
@@ -583,7 +583,7 @@ export default function SettingsPage() {
 
             <footer className="mt-20 py-8 border-t border-gray-100 text-center">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[6px] transition-all hover:text-blue-500 hover:tracking-[8px] cursor-default">
-                    GMB Spatial Engine v3.0.1 • Precision Ranking Intelligence
+                    GBP Rank Tracker v1.9.0 • Precision Ranking Intelligence
                 </p>
             </footer>
         </div>

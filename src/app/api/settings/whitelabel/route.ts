@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
 const DEFAULTS: Record<string, string> = {
-  wl_company_name: 'GeoRanker',
+  wl_company_name: 'GBP Rank Tracker',
   wl_logo_url: '',
   wl_brand_color: '#3B82F6',
   wl_favicon_url: '',

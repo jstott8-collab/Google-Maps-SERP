@@ -9,14 +9,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-    title: "GeoRanker - Local SEO Tools",
+    title: "GBP Rank Tracker - Local SEO Tools",
     description: "Enterprise grade local SEO tracking",
     manifest: "/manifest.json",
     themeColor: "#2563eb",
     appleWebApp: {
         capable: true,
         statusBarStyle: "default",
-        title: "GeoRanker",
+        title: "GBP Rank Tracker",
     },
     viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
 };

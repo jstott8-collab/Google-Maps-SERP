@@ -48,7 +48,7 @@ const sections = [
     {
         title: "Understanding Schedules",
         icon: Clock,
-        content: "Since this app runs on your local machine, scheduled scans (e.g., every 24 hours) will only trigger when the application is running. If you miss a scan while offline, GeoRanker will prompt you to run it the next time you start the app."
+        content: "Since this app runs on your local machine, scheduled scans (e.g., every 24 hours) will only trigger when the application is running. If you miss a scan while offline, GBP Rank Tracker will prompt you to run it the next time you start the app."
     },
     {
         title: "Reports & Analysis",
