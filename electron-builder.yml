@@ -104,13 +104,15 @@ asar: true
 asarUnpack:
   - "node_modules/better-sqlite3/**"
 
+afterSign: scripts/after-sign.js
+
 mac:
   category: public.app-categories.business
   target:
     - target: dmg
-  hardenedRuntime: true
-  entitlements: build-resources/entitlements.mac.plist
-  entitlementsInherit: build-resources/entitlements.mac.plist
+  # Skip certificate-based signing (no Apple account).
+  # Ad-hoc signing is applied via the afterSign hook above.
+  identity: null
   artifactName: "GBP-Rank-Tracker-${version}.${ext}"
 
 win:

@@ -69,6 +69,9 @@ jobs:
         run: npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ad-hoc sign with "-" identity — no Apple account needed.
+          # Prevents "app is damaged" Gatekeeper error on macOS 13+.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build Electron app (Windows)
         if: matrix.platform == 'win'
