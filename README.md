@@ -291,7 +291,7 @@ Contributions are welcome. This is an open-source project and community improvem
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
-**Author:** [Danish Fareed](https://github.com/danishfareed)
+**Author:** [Danish Mohammed](https://github.com/danishfareed)
 **Website:** [vdesignu.com](https://vdesignu.com)
 
 ---
