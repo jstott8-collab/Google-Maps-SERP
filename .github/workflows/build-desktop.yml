@@ -61,37 +61,20 @@ jobs:
       - name: Rebuild better-sqlite3 for Electron
         run: npx @electron/rebuild -f -w better-sqlite3
 
+      - name: Create empty data/postal directory
+        run: node -e "require('fs').mkdirSync('data/postal',{recursive:true})"
+
       - name: Build Electron app (macOS)
         if: matrix.platform == 'mac'
-        id: build_mac
-        continue-on-error: true
-        run: npx electron-builder --mac --publish always 2>&1 | tee build-output.log
+        run: npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEBUG: 'electron-builder'
 
       - name: Build Electron app (Windows)
         if: matrix.platform == 'win'
-        id: build_win
-        continue-on-error: true
-        run: npx electron-builder --win --publish always 2>&1 | tee build-output.log
+        run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEBUG: 'electron-builder'
-
-      - name: Upload build log on failure
-        if: failure() || steps.build_mac.outcome == 'failure' || steps.build_win.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log-${{ matrix.platform }}
-          path: build-output.log
-
-      - name: Fail if build failed
-        if: steps.build_mac.outcome == 'failure' || steps.build_win.outcome == 'failure'
-        run: |
-          echo "::error::Electron builder failed. Check the uploaded build-output.log artifact."
-          tail -100 build-output.log
-          exit 1
 
   update-release:
     needs: build
