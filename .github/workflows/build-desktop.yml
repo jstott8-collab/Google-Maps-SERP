@@ -53,7 +53,8 @@ jobs:
         run: npx next build
 
       - name: Verify standalone output exists
-        run: node -e "const fs=require('fs'); if(!fs.existsSync('.next/standalone/server.js')){console.error('ERROR: .next/standalone/server.js missing — Next.js build did not produce standalone output');process.exit(1);} console.log('Standalone output verified.');"
+        run: |
+          node -e "const fs=require('fs'); if(!fs.existsSync('.next/standalone/server.js')){console.error('ERROR: standalone server.js missing - Next.js build did not produce standalone output');process.exit(1);} console.log('Standalone output verified.');"
 
       - name: Copy static assets
         run: node scripts/copy-static.js
