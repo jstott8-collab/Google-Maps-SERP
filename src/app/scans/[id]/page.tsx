@@ -12,6 +12,7 @@ import { PinInspectionSidebar } from '@/components/scans/PinInspectionSidebar';
 import { BusinessCard } from '@/components/scans/BusinessCard';
 import { TrendChart } from '@/components/scans/TrendChart';
 import { CompetitorIntelligenceDashboard } from '@/components/scans/CompetitorIntelligence';
+import { AllListingsTable } from '@/components/scans/AllListingsTable';
 import { TimelineBar } from '@/components/scans/TimelineBar';
 import { AddressResolver } from '@/components/scans/AddressResolver';
 
@@ -68,7 +69,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
     const resolvedParams = use(params);
     const [scan, setScan] = useState<Scan | null>(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'map' | 'list' | 'competitors' | 'intelligence'>('map');
+    const [activeTab, setActiveTab] = useState<'map' | 'list' | 'listings' | 'intelligence'>('map');
     const [selectedPoint, setSelectedPoint] = useState<Result | null>(null);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [filter, setFilter] = useState<'all' | 'top3' | 'top10' | 'unranked'>('all');
@@ -418,9 +419,9 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
                         <Trophy size={18} className="text-blue-600" />
-                        Top Competitors Detected
+                        Top Listings Detected
                     </h2>
-                    <Button variant="ghost" size="sm" onClick={() => setActiveTab('competitors')} className="text-blue-600 font-bold text-xs uppercase tracking-wider">
+                    <Button variant="ghost" size="sm" onClick={() => setActiveTab('listings')} className="text-blue-600 font-bold text-xs uppercase tracking-wider">
                         View All Contributions
                     </Button>
                 </div>
@@ -479,10 +480,10 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                     Grid Status
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('competitors')}
-                                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'competitors' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                                    onClick={() => setActiveTab('listings')}
+                                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'listings' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                                 >
-                                    Competitors
+                                    All Listings
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('intelligence')}
@@ -493,8 +494,8 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                 </button>
                             </div>
                             <div className="flex items-center gap-3">
-                                {activeTab === 'competitors' ? (
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Market Share analysis</span>
+                                {activeTab === 'listings' ? (
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">All Listings Analysis</span>
                                 ) : (
                                     <>
                                         <div className="relative">
@@ -582,7 +583,7 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                                             </div>
                                                             <div className="flex flex-col">
                                                                 <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest mb-1">Local Entities</span>
-                                                                <span className="text-xs font-bold text-gray-800">{topResults.length} Competitors</span>
+                                                                <span className="text-xs font-bold text-gray-800">{topResults.length} Listings</span>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3">
@@ -611,95 +612,12 @@ export default function ScanReportPage({ params }: { params: Promise<{ id: strin
                                         })}
                                     </div>
                                 </div>
-                            ) : activeTab === 'competitors' ? (
-                                <div className="h-full bg-white overflow-y-auto no-scrollbar">
-                                    <div className="p-4">
-                                        <table className="w-full text-left text-xs">
-                                            <thead>
-                                                <tr className="border-b border-gray-100">
-                                                    <th className="pb-3 font-black text-gray-400 uppercase tracking-widest">Business Name</th>
-                                                    <th className="pb-3 font-black text-gray-400 uppercase tracking-widest">Appearances</th>
-                                                    <th className="pb-3 font-black text-gray-400 uppercase tracking-widest text-center">Efficiency</th>
-                                                    <th className="pb-3 font-black text-gray-400 uppercase tracking-widest">Rank Stats</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-50">
-                                                {(() => {
-                                                    const competitorsMap = new Map<string, {
-                                                        name: string,
-                                                        avgRank: number,
-                                                        appearances: number,
-                                                        top3: number,
-                                                        top10: number,
-                                                        other: number
-                                                    }>();
-
-                                                    scan.results.forEach(r => {
-                                                        const results = getTopResults(r.topResults);
-                                                        results.forEach(biz => {
-                                                            const entry = competitorsMap.get(biz.name) || {
-                                                                name: biz.name,
-                                                                avgRank: 0,
-                                                                appearances: 0,
-                                                                top3: 0,
-                                                                top10: 0,
-                                                                other: 0
-                                                            };
-                                                            entry.appearances += 1;
-                                                            entry.avgRank += biz.rank;
-                                                            if (biz.rank <= 3) entry.top3 += 1;
-                                                            else if (biz.rank <= 10) entry.top10 += 1;
-                                                            else entry.other += 1;
-                                                            competitorsMap.set(biz.name, entry);
-                                                        });
-                                                    });
-
-                                                    return Array.from(competitorsMap.values())
-                                                        .map(c => ({ ...c, avgRank: c.avgRank / c.appearances }))
-                                                        .sort((a, b) => b.appearances - a.appearances || a.avgRank - b.avgRank)
-                                                        .map((comp) => (
-                                                            <tr key={comp.name} className="hover:bg-gray-50/50 transition-colors group">
-                                                                <td className="py-4">
-                                                                    <p className="font-black text-gray-900 group-hover:text-blue-600 transition-colors">{comp.name}</p>
-                                                                    {comp.name.toLowerCase() === scan.businessName?.toLowerCase() && (
-                                                                        <Badge variant="blue" className="mt-1">Target Account</Badge>
-                                                                    )}
-                                                                </td>
-                                                                <td className="py-4">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="font-bold text-gray-700">{comp.appearances} / {totalPoints} Points</span>
-                                                                        <span className="text-[10px] text-gray-400">Visibility: {((comp.appearances / totalPoints) * 100).toFixed(1)}%</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4">
-                                                                    <div className="flex items-center justify-center gap-4">
-                                                                        <div className="text-center">
-                                                                            <p className="text-[9px] text-gray-400 uppercase font-black mb-1">Top 3</p>
-                                                                            <p className="text-xs font-black text-emerald-600">{(comp.top3)}</p>
-                                                                        </div>
-                                                                        <div className="text-center">
-                                                                            <p className="text-[9px] text-gray-400 uppercase font-black mb-1">Top 10</p>
-                                                                            <p className="text-xs font-black text-amber-500">{(comp.top10)}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-xs font-black text-gray-900">Avg: #{comp.avgRank.toFixed(1)}</span>
-                                                                        <div className="flex h-1.5 w-24 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-                                                                            <div className="h-full bg-emerald-500" style={{ width: `${(comp.top3 / comp.appearances) * 100}%` }} />
-                                                                            <div className="h-full bg-amber-400" style={{ width: `${(comp.top10 / comp.appearances) * 100}%` }} />
-                                                                            <div className="h-full bg-gray-300" style={{ width: `${(comp.other / comp.appearances) * 100}%` }} />
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ));
-                                                })()}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                            ) : activeTab === 'listings' ? (
+                                <AllListingsTable
+                                    results={scan.results}
+                                    totalPoints={totalPoints}
+                                    targetBusinessName={scan.businessName}
+                                />
                             ) : activeTab === 'intelligence' ? (
                                 <div className="h-full bg-gray-50 overflow-y-auto p-4">
                                     <CompetitorIntelligenceDashboard
