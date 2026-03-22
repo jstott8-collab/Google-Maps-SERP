@@ -33,6 +33,9 @@ export async function POST(req: Request) {
         if (!keyword || typeof keyword !== 'string' || !keyword.trim()) {
             return NextResponse.json({ error: 'Keyword is required' }, { status: 400 });
         }
+        if (keyword.length > 200) {
+            return NextResponse.json({ error: 'Keyword must be 200 characters or less' }, { status: 400 });
+        }
 
         // Use provided coordinates or default to Chicago (Mock)
         const centerLat = typeof lat === 'number' ? lat : 41.8781;

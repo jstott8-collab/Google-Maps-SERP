@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { ChildProcess, spawn, spawnSync } from 'child_process';
@@ -136,9 +136,13 @@ function createMainWindow(): BrowserWindow {
     titleBarStyle: 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webSecurity: true,
+      contextIsolation: true,       // renderer cannot access Node APIs
+      nodeIntegration: false,       // no require() in renderer
+      webSecurity: true,            // enforce same-origin policy
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
+      // Sandbox the renderer — restricts OS-level access even if renderer is compromised
+      sandbox: true,
     },
   });
 
@@ -215,13 +219,14 @@ function createMenu(): void {
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
+        // DevTools only available in development — not in packaged app
+        ...(!isPackaged() ? [{ role: 'toggleDevTools' as const }] : []),
+        { type: 'separator' as const },
+        { role: 'resetZoom' as const },
+        { role: 'zoomIn' as const },
+        { role: 'zoomOut' as const },
+        { type: 'separator' as const },
+        { role: 'togglefullscreen' as const },
       ],
     },
     {
@@ -451,9 +456,57 @@ function backupDatabase(): void {
 }
 
 // ─── IPC: Expose log path ─────────────────────────────────────────────────
+
 function registerUtilityHandlers(): void {
   ipcMain.handle('get-log-path', () => LOG_DIR);
   ipcMain.handle('get-data-path', () => getUserDataDir());
+}
+
+/**
+ * Apply Content Security Policy to the default session.
+ * Runs before any window loads content from the local Next.js server.
+ *
+ * Why each directive:
+ *  - default-src self+localhost  : allow only our embedded server
+ *  - script-src unsafe-inline/eval: required by Next.js hydration
+ *  - img-src tiles+data          : Leaflet map tiles and data URIs
+ *  - connect-src external APIs   : geocoding, Overpass, GitHub updates
+ *  - frame-src none              : no iframes (prevents clickjacking)
+ *  - object-src none             : no plugins (Flash etc.)
+ *  - base-uri self               : prevents base tag hijacking
+ */
+function applyContentSecurityPolicy(port: number): void {
+  const localOrigin = `http://127.0.0.1:${port}`;
+  const csp = [
+    `default-src 'self' ${localOrigin}`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${localOrigin}`,
+    `style-src 'self' 'unsafe-inline' ${localOrigin}`,
+    `font-src 'self' data: ${localOrigin}`,
+    // Map tiles (OpenStreetMap) and data URIs for Leaflet markers
+    `img-src 'self' data: blob: ${localOrigin} https://*.tile.openstreetmap.org https://*.openstreetmap.org`,
+    // External APIs this app uses:
+    //  - nominatim: address geocoding
+    //  - overpass-api: smart grid neighborhood lookup
+    //  - api.github.com: update version check
+    //  - objects.githubusercontent.com: update download
+    `connect-src 'self' ${localOrigin} https://nominatim.openstreetmap.org https://overpass-api.de https://api.github.com https://objects.githubusercontent.com https://github.com`,
+    `frame-src 'none'`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+  ].join('; ');
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+        'X-Content-Type-Options': ['nosniff'],
+        'X-Frame-Options': ['DENY'],
+        'Referrer-Policy': ['no-referrer'],
+      },
+    });
+  });
 }
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────
@@ -484,6 +537,9 @@ app.whenReady().then(async () => {
     updateSplashStatus('Starting server...');
     serverPort = await startNextServer();
     log('INFO', `Server ready on port ${serverPort}`);
+
+    // Apply Content Security Policy now that we know the server port
+    applyContentSecurityPolicy(serverPort);
 
     // Create and show main window
     mainWindow = createMainWindow();
