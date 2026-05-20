@@ -230,9 +230,13 @@ export default function LeafletMap({
                 <ZoomControl position="bottomright" />
                 <MapResizer />
 
+                {/* FIXED: Switched from CARTO tiles to OpenStreetMap for better Electron desktop compatibility */}
+                {/* CARTO CDN had CORS issues on macOS Electron. OSM tiles are more reliable. */}
                 <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maxZoom={19}
+                    crossOrigin="anonymous"
                 />
                 <MapUpdater center={center} zoom={zoom} />
 
@@ -331,4 +335,3 @@ export default function LeafletMap({
         </div>
     );
 }
-
